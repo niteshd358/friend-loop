@@ -1,0 +1,13 @@
+# IDEs and Environments
+.vscode/
+.idea/
+.env
+
+# Logs and databases
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Mac
+.DS_Store
