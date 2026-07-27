@@ -1,5 +1,6 @@
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
+import { getIO } from "../socket.js";
 
 export const getMessages = async (req, res) => {
   try {
@@ -17,18 +18,47 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { chatId, text } = req.body;
-    if (!chatId || !text) return res.status(400).json({ msg: "chatId and text are required" });
+    const { chatId, text, attachmentUrl, attachmentType } = req.body;
+    if (!chatId || (!text && !attachmentUrl)) return res.status(400).json({ msg: "chatId and text/attachment are required" });
 
-    const msg = await Message.create({
+    let msg = await Message.create({
       chatId,
       senderId: req.user.id,
-      text,
+      text: text || "",
+      attachmentUrl: attachmentUrl || "",
+      attachmentType: attachmentType || "",
+      status: "sent"
     });
 
-    await Chat.findByIdAndUpdate(chatId, { lastMessage: text });
+    const lastMsgContent = attachmentUrl ? (attachmentType === 'image' ? '📷 Image' : '📎 Attachment') : text;
+    await Chat.findByIdAndUpdate(chatId, { lastMessage: lastMsgContent });
+
+    // Populate sender details before emitting
+    msg = await msg.populate("senderId", "name email");
+
+    // Emit to socket room
+    try {
+      const io = getIO();
+      io.to(chatId).emit("chat:message", msg);
+    } catch (socketErr) {
+      console.error("Socket emit failed:", socketErr);
+    }
 
     res.status(201).json(msg);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const uploadMessageAttachment = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ msg: "No file uploaded" });
+    }
+    const attachmentUrl = `/uploads/${req.file.filename}`;
+    const attachmentType = req.file.mimetype.startsWith('image/') ? 'image' : 'file';
+    
+    res.json({ attachmentUrl, attachmentType });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,13 +1,23 @@
 import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import ChatPage from "./pages/ChatPage";
 import API from "./api/axios";
 
-function App() {
+// Custom PrivateRoute component
+const PrivateRoute = ({ children, user, loading }) => {
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
+  return user ? children : <Navigate to="/login" />;
+};
+
+function AppContent() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showRegister, setShowRegister] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -18,7 +28,6 @@ function App() {
           setLoading(false);
         })
         .catch(() => {
-          // invalid token
           localStorage.removeItem("token");
           setLoading(false);
         });
@@ -27,28 +36,45 @@ function App() {
     }
   }, []);
 
+  const handleLogin = (token, userData) => {
+    localStorage.setItem("token", token);
+    setUser(userData);
+    navigate("/");
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     setUser(null);
+    navigate("/login");
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50">Loading...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
 
-  if (!user) {
-    return showRegister ? (
-      <Register onSwitchToLogin={() => setShowRegister(false)} />
-    ) : (
-      <Login 
-        onSwitchToRegister={() => setShowRegister(true)} 
-        onLogin={(token, userData) => {
-          localStorage.setItem("token", token);
-          setUser(userData);
-        }} 
+  return (
+    <Routes>
+      <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />} />
+      <Route path="/register" element={user ? <Navigate to="/" /> : <Register />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route 
+        path="/" 
+        element={
+          <PrivateRoute user={user} loading={loading}>
+            <ChatPage user={user} onLogout={handleLogout} />
+          </PrivateRoute>
+        } 
       />
-    );
-  }
+    </Routes>
+  );
+}
 
-  return <ChatPage user={user} onLogout={handleLogout} />;
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  );
 }
 
 export default App;

@@ -24,7 +24,9 @@ export const ensureChat = async (req, res) => {
 export const getMyChats = async (req, res) => {
   try {
     const me = req.user.id;
-    const chats = await Chat.find({ members: me }).sort({ updatedAt: -1 });
+    const chats = await Chat.find({ members: me })
+      .populate("members", "username email")
+      .sort({ updatedAt: -1 });
     res.json(chats);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -4,11 +4,13 @@ import Chat from "./models/Chat.js";
 import Message from "./models/Message.js";
 
 const onlineUsers = new Map();
+let ioInstance;
 
 export function initSocket(httpServer, corsOrigin = "*") {
   const io = new Server(httpServer, {
     cors: { origin: corsOrigin, credentials: true },
   });
+  ioInstance = io;
 
   io.use((socket, next) => {
     try {
@@ -25,6 +27,9 @@ export function initSocket(httpServer, corsOrigin = "*") {
   io.on("connection", (socket) => {
     const userId = socket.user.id;
     onlineUsers.set(userId, socket.id);
+    
+    // Join a personal room for user-specific events
+    socket.join(userId);
 
     // Join a specific chat room
     socket.on("chat:join", (chatId) => {
@@ -40,26 +45,21 @@ export function initSocket(httpServer, corsOrigin = "*") {
       }
     });
 
-    // Send a message
-    socket.on("chat:send", async ({ chatId, text }) => {
-      if (!chatId || !text) return;
+    // The chat:send logic has been moved to the REST API (messageController.js) to avoid duplicate DB entries.
 
+    // Mark messages as read
+    socket.on("messages:mark_read", async ({ chatId }) => {
+      if (!chatId) return;
       try {
-        const msg = await Message.create({
-          chatId,
-          senderId: userId,
-          text,
-        });
-
-        await Chat.findByIdAndUpdate(chatId, { lastMessage: text });
-
-        // Populate sender details before emitting
-        await msg.populate("senderId", "name email");
-
-        // Broadcast to the chat room
-        io.to(chatId).emit("chat:message", msg);
+        await Message.updateMany(
+          { chatId, senderId: { $ne: userId }, status: { $ne: "read" } },
+          { $set: { status: "read" } }
+        );
+        
+        // Notify room that messages were read
+        io.to(chatId).emit("messages:read_updated", { chatId, readerId: userId });
       } catch (err) {
-        console.error("Socket error on chat:send:", err);
+        console.error("Socket error on mark_read:", err);
       }
     });
 
@@ -69,4 +69,11 @@ export function initSocket(httpServer, corsOrigin = "*") {
   });
 
   return io;
+}
+
+export function getIO() {
+  if (!ioInstance) {
+    throw new Error("Socket.io not initialized");
+  }
+  return ioInstance;
 }

@@ -2,17 +2,27 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import http from "http";
 
 import authRoutes from "./routes/auth.js";
 import chatRoutes from "./routes/chat.js";
 import messageRoutes from "./routes/message.js";
+import friendRequestRoutes from "./routes/friendRequest.js";
+import profileRoutes from "./routes/profile.js";
 import { initSocket } from "./socket.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+
+// Serve uploads folder statically
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || "*", credentials: true }));
 
 // Health
@@ -22,6 +32,8 @@ app.get("/", (_req, res) => res.send("API running"));
 app.use("/api/auth", authRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/friend-requests", friendRequestRoutes);
+app.use("/api/profile", profileRoutes);
 
 // DB
 mongoose

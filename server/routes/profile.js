@@ -1,6 +1,6 @@
 import express from "express";
+import { getProfile, updateProfile } from "../controllers/profileController.js";
 import authMiddleware from "../middleware/authMiddleware.js";
-import { getMessages, sendMessage, uploadMessageAttachment } from "../controllers/messageController.js";
 import multer from "multer";
 import path from "path";
 
@@ -18,13 +18,26 @@ const storage = multer.diskStorage({
   },
 });
 
+// File filter to allow only images
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true);
+  } else {
+    cb(new Error("Not an image! Please upload an image."), false);
+  }
+};
+
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for chat attachments
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  }
 });
 
-router.get("/:chatId", authMiddleware, getMessages);
-router.post("/", authMiddleware, sendMessage);
-router.post("/upload", authMiddleware, upload.single("attachment"), uploadMessageAttachment);
+router.use(authMiddleware);
+
+router.get("/:id", getProfile);
+router.put("/update", upload.single("profileImage"), updateProfile);
 
 export default router;

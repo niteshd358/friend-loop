@@ -1,31 +1,34 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Lock, LogIn, ArrowRight } from "lucide-react";
-import { useNavigate, Link } from "react-router-dom";
+import { KeyRound, Lock, Hash, ArrowRight } from "lucide-react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import API from "../api/axios";
 
-export default function Login({ onLogin }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+export default function ResetPassword() {
+  const location = useLocation();
+  const [token, setToken] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setSuccess("");
+    
     try {
-      const res = await API.post("/auth/login", { email, password });
-      const { token, user } = res.data;
-      if (onLogin) onLogin(token, user);
+      const res = await API.post("/auth/reset-password", { token, newPassword });
+      setSuccess(res.data.msg || "Password reset successfully!");
+      
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
     } catch (err) {
-      if (err.response?.status === 403 && err.response?.data?.unverifiedEmail) {
-        // Redirect to verify email
-        navigate("/verify-email", { state: { email: err.response.data.unverifiedEmail } });
-      } else {
-        setError(err.response?.data?.msg || "Login failed. Please try again.");
-      }
+      setError(err.response?.data?.msg || "Failed to reset password.");
     } finally {
       setIsLoading(false);
     }
@@ -39,9 +42,6 @@ export default function Login({ onLogin }) {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="glass w-full max-w-md p-8 rounded-3xl shadow-2xl relative overflow-hidden"
       >
-        <div className="absolute top-0 right-0 -mt-16 -mr-16 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-        <div className="absolute bottom-0 left-0 -mb-16 -ml-16 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-
         <div className="text-center mb-8 relative z-10">
           <motion.div
             initial={{ scale: 0 }}
@@ -49,35 +49,47 @@ export default function Login({ onLogin }) {
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
             className="w-16 h-16 bg-white/20 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-inner"
           >
-            <LogIn className="w-8 h-8 text-white" />
+            <KeyRound className="w-8 h-8 text-white" />
           </motion.div>
-          <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-          <p className="text-white/70">Sign in to continue your conversations</p>
+          <h2 className="text-3xl font-bold text-white mb-2">New Password</h2>
+          <p className="text-white/70">
+            Enter the token from your email and your new password.
+          </p>
         </div>
 
         {error && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
-            className="bg-red-500/20 border border-red-500/50 text-white px-4 py-3 rounded-xl mb-6 text-sm"
+            className="bg-red-500/20 border border-red-500/50 text-white px-4 py-3 rounded-xl mb-6 text-sm relative z-10"
           >
             {error}
           </motion.div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="bg-green-500/20 border border-green-500/50 text-white px-4 py-3 rounded-xl mb-6 text-sm relative z-10"
+          >
+            {success}
+          </motion.div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
           <div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-white/50" />
+                <Hash className="h-5 w-5 text-white/50" />
               </div>
               <input
                 type="text"
-                placeholder="Username or Email Address"
+                placeholder="Reset Token"
                 required
                 className="w-full bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
               />
             </div>
           </div>
@@ -88,17 +100,12 @@ export default function Login({ onLogin }) {
               </div>
               <input
                 type="password"
-                placeholder="Password"
+                placeholder="New Password"
                 required
                 className="w-full bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
               />
-            </div>
-            <div className="flex justify-end mt-2">
-              <Link to="/forgot-password" className="text-sm text-white/70 hover:text-white transition-colors hover:underline">
-                Forgot Password?
-              </Link>
             </div>
           </div>
 
@@ -106,29 +113,25 @@ export default function Login({ onLogin }) {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
-            disabled={isLoading}
-            className="w-full bg-white text-purple-600 font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed mt-2"
+            disabled={isLoading || !!success}
+            className="w-full bg-white text-purple-600 font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group mt-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <span className="animate-pulse">Signing in...</span>
+              <span className="animate-pulse">Resetting...</span>
             ) : (
               <>
-                Sign In
+                Reset Password
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </>
             )}
           </motion.button>
         </form>
 
-        <p className="mt-8 text-sm text-center text-white/70 relative z-10">
-          Don't have an account?{" "}
-          <Link
-            to="/register"
-            className="text-white font-semibold hover:underline decoration-2 underline-offset-4"
-          >
-            Create one
+        <div className="mt-6 text-center text-sm">
+          <Link to="/login" className="text-white/70 hover:text-white hover:underline">
+            Back to Login
           </Link>
-        </p>
+        </div>
       </motion.div>
     </div>
   );
