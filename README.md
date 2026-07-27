@@ -3,10 +3,13 @@
 Welcome to **FriendLoop**, a modern, responsive, real-time messaging application. Connect with friends instantly using WebSockets for a seamless, live chat experience.
 
 ## ✨ Project Features
-- **Real-Time Messaging:** Powered by Socket.io for instantaneous message delivery and updates.
-- **Clean Architecture:** Organized backend adhering to the MVC pattern (Models, Controllers, Routes) for maintainability and scalability.
-- **Authentication Flow:** Secure user registration and login implemented with JWT (JSON Web Tokens) and bcrypt.
-- **Responsive UI:** Clean, Apple-like chat interface built with React and TailwindCSS.
+- **Real-Time Messaging:** Powered by Socket.io for instantaneous message delivery, complete with read/delivered status updates.
+- **Rich Media & Emojis:** Send file and image attachments (up to 10MB) directly in chats, and express yourself using the integrated emoji picker.
+- **Friend Request System:** Search for users, send friend requests, and manage your connections (accept/decline/unfriend).
+- **Profile Management:** Customize your user profile by updating your avatar (with default SVG fallbacks), date of birth, and gender.
+- **Authentication Flow:** Secure user registration, login, and password recovery via tokens, implemented with JWT and bcrypt.
+- **Clean Architecture:** Organized backend adhering to the MVC pattern for maintainability and scalability.
+- **Responsive UI:** Clean, modern chat interface built with React, TailwindCSS, and Framer Motion for smooth micro-animations.
 
 ## 🛠 Tech Stack
 **Frontend:**
