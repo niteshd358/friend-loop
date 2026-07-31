@@ -42,8 +42,17 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 const corsOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 app.use(cors({ origin: corsOrigin, credentials: true }));
 
-// Health
-app.get("/", (_req, res) => res.send("API running"));
+// Serve Frontend in Production
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../chat-frontend/dist")));
+  
+  // Health check API route
+  app.get("/api/health", (_req, res) => res.send("API running"));
+  
+} else {
+  // Health check for development
+  app.get("/", (_req, res) => res.send("API running"));
+}
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -57,6 +66,13 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected ✅"))
   .catch((err) => console.error(err));
+
+// Catch-all route for React Router (must be AFTER all API routes)
+if (process.env.NODE_ENV === "production") {
+  app.get("*", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "../chat-frontend/dist", "index.html"));
+  });
+}
 
 // HTTP + Socket
 const server = http.createServer(app);

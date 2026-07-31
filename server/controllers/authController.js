@@ -8,18 +8,18 @@ export const signup = async (req, res) => {
 
     const existingEmail = await User.findOne({ email });
     if (existingEmail) return res.status(400).json({ msg: "Email already in use" });
-    
+
     const existingUsername = await User.findOne({ username });
     if (existingUsername) return res.status(400).json({ msg: "Username already taken" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = new User({ 
-      username, 
-      email, 
+    const newUser = new User({
+      username,
+      email,
       password: hashedPassword
     });
-    
+
     await newUser.save();
 
     res.json({ msg: "User registered successfully! You can now log in.", email });
@@ -36,7 +36,7 @@ export const login = async (req, res) => {
     const user = await User.findOne({
       $or: [{ email: email }, { username: email }]
     });
-    
+
     if (!user) return res.status(400).json({ msg: "User not found" });
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -61,8 +61,8 @@ export const demoLogin = async (req, res) => {
         username: "Guest User",
         email: "guest@demo.com",
         password: hashedPassword,
-        firstName: "Recruiter",
-        lastName: "Guest"
+        firstName: "Guest",
+        lastName: "User"
       });
     }
 
