@@ -10,6 +10,18 @@ import {
 } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 
+const formatLastSeen = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInMinutes = Math.floor((now - date) / 60000);
+  if (diffInMinutes < 1) return "last seen just now";
+  if (diffInMinutes < 60) return `last seen ${diffInMinutes}m ago`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `last seen ${diffInHours}h ago`;
+  return `last seen ${date.toLocaleDateString()}`;
+};
+
 export default function ChatPage({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState("chats"); // 'chats', 'search', 'requests'
   const [chats, setChats] = useState([]);
@@ -34,6 +46,9 @@ export default function ChatPage({ user, onLogout }) {
   
   // Profile View
   const [viewingProfileId, setViewingProfileId] = useState(null);
+  
+  // Online Statuses Sync
+  const [userStatuses, setUserStatuses] = useState({});
   
   const socket = useSocket();
   const messagesEndRef = useRef(null);
@@ -136,16 +151,25 @@ export default function ChatPage({ user, onLogout }) {
       }
     };
     
+    const handleUserStatus = ({ userId, status, lastSeen }) => {
+      setUserStatuses((prev) => ({
+        ...prev,
+        [userId]: { isOnline: status === "online", lastSeen }
+      }));
+    };
+    
     socket.on("chat:message", handleNewMessage);
     socket.on("chat:created", handleChatListUpdate);
     socket.on("chat:removed", handleChatRemoved);
     socket.on("messages:read_updated", handleMessagesRead);
+    socket.on("user:status", handleUserStatus);
     
     return () => {
       socket.off("chat:message", handleNewMessage);
       socket.off("chat:created", handleChatListUpdate);
       socket.off("chat:removed", handleChatRemoved);
       socket.off("messages:read_updated", handleMessagesRead);
+      socket.off("user:status", handleUserStatus);
     };
   }, [socket, selectedChat, user._id]);
 
@@ -267,9 +291,9 @@ export default function ChatPage({ user, onLogout }) {
   });
 
   return (
-    <div className="h-screen flex bg-[#f8fafc] overflow-hidden font-sans">
+    <div className="h-screen flex bg-slate-50 overflow-hidden font-sans">
       {/* Sidebar */}
-      <div className="w-[320px] lg:w-[380px] bg-white border-r border-slate-200 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10">
+      <div className="w-[320px] lg:w-[380px] bg-white border-r border-slate-200/60 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10">
         
         {/* User Profile & Header */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0">
@@ -343,28 +367,40 @@ export default function ChatPage({ user, onLogout }) {
                   <div className="text-center text-slate-400 mt-10 text-sm">No chats found. Find friends to start!</div>
                 ) : (
                   filteredChats.map((chat) => {
-                    const title = chat.isGroupChat ? chat.chatName : chat.members.find(m => m._id !== user._id)?.username || "User";
+                    const otherUser = chat.members.find(m => m._id !== user._id);
+                    const title = chat.isGroupChat ? chat.chatName : otherUser?.username || "User";
                     const isSelected = selectedChat?._id === chat._id;
+                    const syncedStatus = otherUser ? userStatuses[otherUser._id] : null;
+                    const isOnline = syncedStatus ? syncedStatus.isOnline : otherUser?.isOnline;
+
                     return (
                       <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} key={chat._id} onClick={() => setSelectedChat(chat)} className={`p-3 rounded-xl cursor-pointer transition-all flex items-center gap-3 ${isSelected ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20" : "hover:bg-slate-50 text-slate-700"}`}>
                         <div 
-                          className={`w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0 border ${isSelected ? "border-indigo-400/50" : "border-slate-200"}`}
+                          className={`relative w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0 border ${isSelected ? "border-indigo-400/50" : "border-slate-200"}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            const otherUser = chat.members.find(m => m._id !== user._id);
                             if (otherUser) setViewingProfileId(otherUser._id);
                           }}
                         >
                           {chat.isGroupChat ? (
                             <div className="w-full h-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-lg">{title[0]?.toUpperCase()}</div>
                           ) : (
-                            chat.members.find(m => m._id !== user._id)?.profileImage ? (
-                              <img src={chat.members.find(m => m._id !== user._id).profileImage.startsWith('http') ? chat.members.find(m => m._id !== user._id).profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${chat.members.find(m => m._id !== user._id).profileImage}`} alt="avatar" className="w-full h-full object-cover" />
+                            otherUser?.profileImage ? (
+                              <img src={otherUser.profileImage.startsWith('http') ? otherUser.profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${otherUser.profileImage}`} alt="avatar" className="w-full h-full object-cover" />
                             ) : <DefaultAvatar className="w-full h-full" />
                           )}
                         </div>
                         <div className="flex-1 overflow-hidden">
                           <h3 className={`font-semibold text-sm truncate ${isSelected ? "text-white" : "text-slate-800"}`}>{title}</h3>
+                          {!chat.isGroupChat && (
+                            <span className={`text-[11px] flex items-center gap-1.5 mt-0.5 ${isSelected ? "text-indigo-100" : "text-slate-500"}`}>
+                              {isOnline ? (
+                                <><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Online</>
+                              ) : (
+                                "Offline"
+                              )}
+                            </span>
+                          )}
                         </div>
                       </motion.div>
                     );
@@ -483,13 +519,13 @@ export default function ChatPage({ user, onLogout }) {
       </div>
 
       {/* Chat Window */}
-      <div className="flex-1 flex flex-col bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-slate-50/90 bg-blend-overlay relative">
+      <div className="flex-1 flex flex-col mesh-bg relative">
         {selectedChat ? (
           <>
             {/* Chat Header */}
-            <div className="h-16 px-6 border-b border-slate-200 bg-white/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-10 shadow-sm">
+            <div className="h-[72px] px-6 border-b border-slate-200/50 glass flex items-center justify-between sticky top-0 z-10">
               <div 
-                className="flex items-center gap-3 cursor-pointer group hover:bg-slate-50 p-1.5 -ml-1.5 rounded-xl transition-colors"
+                className="flex items-center gap-4 cursor-pointer group hover:bg-slate-50/50 p-2 -ml-2 rounded-2xl transition-colors"
                 onClick={() => {
                   if (!selectedChat.isGroupChat) {
                     const otherUser = selectedChat.members.find(m => m._id !== user._id);
@@ -497,7 +533,7 @@ export default function ChatPage({ user, onLogout }) {
                   }
                 }}
               >
-                <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm overflow-hidden shrink-0">
+                <div className="relative w-11 h-11 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm overflow-hidden shrink-0">
                   {selectedChat.isGroupChat ? (
                     <div className="w-full h-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-lg">{selectedChat.chatName?.[0]?.toUpperCase()}</div>
                   ) : (
@@ -507,9 +543,25 @@ export default function ChatPage({ user, onLogout }) {
                   )}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">
+                  <h3 className="font-bold text-[15px] text-slate-800 group-hover:text-indigo-600 transition-colors">
                     {selectedChat.isGroupChat ? selectedChat.chatName : selectedChat.members.find(m => m._id !== user._id)?.username || "User"}
                   </h3>
+                  {!selectedChat.isGroupChat && (() => {
+                    const otherUser = selectedChat.members.find(m => m._id !== user._id);
+                    const syncedStatus = otherUser ? userStatuses[otherUser._id] : null;
+                    const isOnline = syncedStatus ? syncedStatus.isOnline : otherUser?.isOnline;
+                    const lastSeen = syncedStatus?.lastSeen || otherUser?.lastSeen;
+
+                    return (
+                      <span className="text-[12px] flex items-center gap-1.5 text-slate-500 font-medium">
+                        {isOnline ? (
+                          <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> Online</>
+                        ) : (
+                          lastSeen ? formatLastSeen(lastSeen) : "Offline"
+                        )}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -530,7 +582,7 @@ export default function ChatPage({ user, onLogout }) {
                         )}
                       </div>
                       <div className={`max-w-[70%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                        <div className={`px-5 py-3 shadow-sm text-[15px] leading-relaxed flex flex-col gap-2 ${isMe ? "bg-indigo-600 text-white rounded-2xl rounded-br-sm" : "bg-white text-slate-800 rounded-2xl rounded-bl-sm border border-slate-100"}`}>
+                        <div className={`px-5 py-3 text-[15px] leading-relaxed flex flex-col gap-2 ${isMe ? "chat-bubble-send text-white rounded-[20px] rounded-br-sm" : "chat-bubble-receive text-slate-800 rounded-[20px] rounded-bl-sm"}`}>
                           
                           {/* Attachment Rendering */}
                           {msg.attachmentUrl && (
@@ -623,14 +675,13 @@ export default function ChatPage({ user, onLogout }) {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl"></div>
-            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center z-10">
-              <div className="w-24 h-24 bg-white rounded-3xl shadow-xl flex items-center justify-center mx-auto mb-6 rotate-3">
-                <MessageSquare className="w-10 h-10 text-indigo-500 -rotate-3" />
+            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", bounce: 0.5 }} className="text-center z-10 glass p-10 rounded-3xl shadow-xl border border-white/50 max-w-sm mx-auto">
+              <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl shadow-lg shadow-indigo-500/30 flex items-center justify-center mx-auto mb-6 rotate-3 hover:rotate-0 transition-transform">
+                <MessageSquare className="w-10 h-10 text-white -rotate-3 hover:rotate-0 transition-transform" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Connect & Chat</h2>
-              <p className="text-slate-500 max-w-sm mx-auto">
-                Search for friends and send a request. Once accepted, you can start messaging!
+              <h2 className="text-2xl font-bold text-slate-800 mb-3 font-sans tracking-tight">Connect & Chat</h2>
+              <p className="text-slate-500 text-[15px] leading-relaxed">
+                Select a conversation or find new friends to start messaging instantly.
               </p>
             </motion.div>
           </div>

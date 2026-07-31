@@ -24,9 +24,22 @@ export const ensureChat = async (req, res) => {
 export const getMyChats = async (req, res) => {
   try {
     const me = req.user.id;
-    const chats = await Chat.find({ members: me })
-      .populate("members", "username email firstName lastName profileImage")
-      .sort({ updatedAt: -1 });
+    let chats = await Chat.find({ members: me })
+      .populate("members", "username email firstName lastName profileImage lastSeen")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const { getOnlineUsers } = await import("../socket.js");
+    const onlineUsers = getOnlineUsers();
+
+    chats = chats.map(chat => {
+      chat.members = chat.members.map(m => ({
+        ...m,
+        isOnline: onlineUsers.has(m._id.toString())
+      }));
+      return chat;
+    });
+
     res.json(chats);
   } catch (err) {
     res.status(500).json({ error: err.message });

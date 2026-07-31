@@ -2,8 +2,11 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import Chat from "./models/Chat.js";
 import Message from "./models/Message.js";
+import User from "./models/User.js";
 
 const onlineUsers = new Map();
+export const getOnlineUsers = () => onlineUsers;
+
 let ioInstance;
 
 export function initSocket(httpServer, corsOrigin = "*") {
@@ -24,10 +27,13 @@ export function initSocket(httpServer, corsOrigin = "*") {
     }
   });
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const userId = socket.user.id;
     onlineUsers.set(userId, socket.id);
     
+    // Broadcast online status globally
+    io.emit("user:status", { userId, status: "online" });
+
     // Join a personal room for user-specific events
     socket.join(userId);
 
@@ -45,8 +51,6 @@ export function initSocket(httpServer, corsOrigin = "*") {
       }
     });
 
-    // The chat:send logic has been moved to the REST API (messageController.js) to avoid duplicate DB entries.
-
     // Mark messages as read
     socket.on("messages:mark_read", async ({ chatId }) => {
       if (!chatId) return;
@@ -63,8 +67,18 @@ export function initSocket(httpServer, corsOrigin = "*") {
       }
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       onlineUsers.delete(userId);
+      const lastSeenTime = Date.now();
+      
+      // Emit offline status
+      io.emit("user:status", { userId, status: "offline", lastSeen: lastSeenTime });
+      
+      try {
+        await User.findByIdAndUpdate(userId, { lastSeen: lastSeenTime });
+      } catch (err) {
+        console.error("Error updating lastSeen on disconnect:", err);
+      }
     });
   });
 

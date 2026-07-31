@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema({
     dob: { type: Date },
     gender: { type: String, enum: ["male", "female", "other"] },
     profileImage: { type: String, default: "" },
+    lastSeen: { type: Date, default: Date.now },
 }, { timestamps: true });
 
 export default mongoose.model("User", userSchema);

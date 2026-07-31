@@ -10,7 +10,7 @@ export const searchUsers = async (req, res) => {
     let users;
     
     if (!query) {
-      users = await User.find({ _id: { $ne: req.user.id } }).lean().select("username email profileImage");
+      users = await User.find({ _id: { $ne: req.user.id } }).lean().select("username email profileImage lastSeen");
     } else {
       users = await User.find({
         $and: [
@@ -22,8 +22,11 @@ export const searchUsers = async (req, res) => {
             ],
           },
         ],
-      }).lean().select("username email profileImage");
+      }).lean().select("username email profileImage lastSeen");
     }
+
+    const { getOnlineUsers } = await import("../socket.js");
+    const onlineUsers = getOnlineUsers();
 
     const chats = await Chat.find({ members: req.user.id });
     const chatMemberIds = chats.flatMap(chat => chat.members.map(id => id.toString()));
@@ -46,7 +49,11 @@ export const searchUsers = async (req, res) => {
           status = existingReq.sender.toString() === req.user.id ? "request_sent" : "request_received";
         }
       }
-      return { ...u, relationship: status };
+      return { 
+        ...u, 
+        relationship: status,
+        isOnline: onlineUsers.has(u._id.toString())
+      };
     });
     
     res.json(augmentedUsers);
