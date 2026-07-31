@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Root package for fullstack deployment",
   "scripts": {
-    "build": "npm install --prefix server && npm install --prefix chat-frontend && npm run build --prefix chat-frontend",
+    "build": "npm install --prefix server && npm install --prefix chat-frontend --include=dev && npm run build --prefix chat-frontend",
     "start": "npm start --prefix server"
   }
 }
