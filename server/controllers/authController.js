@@ -50,6 +50,48 @@ export const login = async (req, res) => {
   }
 };
 
+export const demoLogin = async (req, res) => {
+  try {
+    const { default: Chat } = await import("../models/Chat.js");
+
+    let guestUser = await User.findOne({ email: "guest@demo.com" });
+    if (!guestUser) {
+      const hashedPassword = await bcrypt.hash("demo123", 10);
+      guestUser = await User.create({
+        username: "Guest User",
+        email: "guest@demo.com",
+        password: hashedPassword,
+        firstName: "Recruiter",
+        lastName: "Guest"
+      });
+    }
+
+    let botUser = await User.findOne({ email: "bot@demo.com" });
+    if (!botUser) {
+      const hashedPassword = await bcrypt.hash("bot123", 10);
+      botUser = await User.create({
+        username: "Echo Bot",
+        email: "bot@demo.com",
+        password: hashedPassword,
+        firstName: "Echo",
+        lastName: "Bot"
+      });
+    }
+
+    let chat = await Chat.findOne({
+      members: { $all: [guestUser._id, botUser._id], $size: 2 },
+    });
+    if (!chat) {
+      await Chat.create({ members: [guestUser._id, botUser._id] });
+    }
+
+    const token = jwt.sign({ id: guestUser._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    res.json({ token, user: { id: guestUser._id, username: guestUser.username, email: guestUser.email } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");

@@ -8,12 +8,14 @@ import {
   updateProfile,
   deleteAccount,
   getMe,
+  demoLogin
 } from "../controllers/authController.js";
 
 const router = express.Router();
 
 router.post("/signup", signup);
 router.post("/login", login);
+router.post("/demo", demoLogin);
 router.get("/profile", authMiddleware, getProfile);
 router.post("/logout", authMiddleware, logout);
 router.put("/profile/update", authMiddleware, updateProfile);

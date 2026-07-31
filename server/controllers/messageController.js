@@ -53,6 +53,38 @@ export const sendMessage = async (req, res) => {
     try {
       const io = getIO();
       io.to(chatId).emit("chat:message", msg);
+      
+      // Echo Bot Logic
+      if (chat && chat.members) {
+        const botMemberId = chat.members.find(m => m.toString() !== req.user.id);
+        if (botMemberId) {
+          const { default: User } = await import("../models/User.js");
+          const botUser = await User.findById(botMemberId);
+          if (botUser && botUser.email === "bot@demo.com") {
+            // Step 1: Mark as read after 1.5s
+            setTimeout(async () => {
+              await Message.updateMany(
+                { chatId, senderId: req.user.id, status: { $ne: "read" } },
+                { $set: { status: "read" } }
+              );
+              io.to(chatId).emit("messages:read_updated", { chatId, readerId: botUser._id.toString() });
+              
+              // Step 2: Reply after another 1s
+              setTimeout(async () => {
+                let botMsg = await Message.create({
+                  chatId,
+                  senderId: botUser._id,
+                  text: `Echo: ${text || "I received your attachment!"}`,
+                  status: "sent"
+                });
+                await Chat.findByIdAndUpdate(chatId, { lastMessage: botMsg.text });
+                botMsg = await botMsg.populate("senderId", "username email firstName lastName profileImage");
+                io.to(chatId).emit("chat:message", botMsg);
+              }, 1000);
+            }, 1500);
+          }
+        }
+      }
     } catch (socketErr) {
       console.error("Socket emit failed:", socketErr);
     }

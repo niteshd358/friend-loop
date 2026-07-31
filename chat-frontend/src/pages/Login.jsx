@@ -108,6 +108,35 @@ export default function Login({ onLogin }) {
               </>
             )}
           </motion.button>
+          
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-white/20"></div>
+            <span className="flex-shrink-0 mx-4 text-white/50 text-sm">or</span>
+            <div className="flex-grow border-t border-white/20"></div>
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            type="button"
+            disabled={isLoading}
+            onClick={async () => {
+              setIsLoading(true);
+              setError("");
+              try {
+                const res = await API.post("/auth/demo");
+                const { token, user } = res.data;
+                if (onLogin) onLogin(token, user);
+              } catch (err) {
+                setError(err.response?.data?.msg || "Demo login failed.");
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            className="w-full bg-indigo-900/40 border border-indigo-300/30 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-indigo-900/60 hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            Try Demo (Guest Login)
+          </motion.button>
         </form>
 
         <p className="mt-8 text-sm text-center text-white/70 relative z-10">
