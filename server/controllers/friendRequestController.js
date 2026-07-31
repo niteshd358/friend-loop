@@ -38,12 +38,12 @@ export const searchUsers = async (req, res) => {
       if (chatMemberIds.includes(u._id.toString())) {
         status = "friends";
       } else {
-        const req = requests.find(r => 
+        const existingReq = requests.find(r => 
           (r.sender.toString() === req.user.id && r.receiver.toString() === u._id.toString()) ||
           (r.receiver.toString() === req.user.id && r.sender.toString() === u._id.toString())
         );
-        if (req) {
-          status = req.sender.toString() === req.user.id ? "request_sent" : "request_received";
+        if (existingReq) {
+          status = existingReq.sender.toString() === req.user.id ? "request_sent" : "request_received";
         }
       }
       return { ...u, relationship: status };
