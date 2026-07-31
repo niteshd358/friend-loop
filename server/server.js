@@ -69,7 +69,7 @@ mongoose
 
 // Catch-all route for React Router (must be AFTER all API routes)
 if (process.env.NODE_ENV === "production") {
-  app.get("*", (req, res) => {
+  app.get(/(.*)/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "../chat-frontend/dist", "index.html"));
   });
 }
