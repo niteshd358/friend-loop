@@ -45,10 +45,10 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 // Serve Frontend in Production
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../chat-frontend/dist")));
-  
+
   // Health check API route
   app.get("/api/health", (_req, res) => res.send("API running"));
-  
+
 } else {
   // Health check for development
   app.get("/", (_req, res) => res.send("API running"));
