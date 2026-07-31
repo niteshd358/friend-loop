@@ -11,3 +11,7 @@ yarn-error.log*
 
 # Mac
 .DS_Store
+
+# Private Documentation and Guides
+DOCUMENTATION.md
+*.pdf
