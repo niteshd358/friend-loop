@@ -12,7 +12,7 @@ export const SocketProvider = ({ user, children }) => {
     const token = localStorage.getItem("token"); // Assuming token is stored in localStorage
 
     if (user && token) {
-      const socketUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const socketUrl = import.meta.env.MODE === "production" ? "/" : "http://localhost:5000";
       
       const newSocket = io(socketUrl, {
         auth: { token },

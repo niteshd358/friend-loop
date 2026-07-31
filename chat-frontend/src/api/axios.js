@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API = axios.create({ baseURL: "http://localhost:5000/api" });
+const baseURL = import.meta.env.MODE === "production" ? "/api" : "http://localhost:5000/api";
+const API = axios.create({ baseURL });
 
 // Add JWT token to requests
 API.interceptors.request.use((req) => {
