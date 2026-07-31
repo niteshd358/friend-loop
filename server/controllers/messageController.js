@@ -21,13 +21,26 @@ export const sendMessage = async (req, res) => {
     const { chatId, text, attachmentUrl, attachmentType } = req.body;
     if (!chatId || (!text && !attachmentUrl)) return res.status(400).json({ msg: "chatId and text/attachment are required" });
 
+    const chat = await Chat.findById(chatId);
+    let status = "sent";
+    
+    const { getOnlineUsers } = await import("../socket.js");
+    const onlineUsers = getOnlineUsers();
+    
+    if (chat && chat.members) {
+      const otherMembersOnline = chat.members.some(m => m.toString() !== req.user.id && onlineUsers.has(m.toString()));
+      if (otherMembersOnline) {
+        status = "delivered";
+      }
+    }
+
     let msg = await Message.create({
       chatId,
       senderId: req.user.id,
       text: text || "",
       attachmentUrl: attachmentUrl || "",
       attachmentType: attachmentType || "",
-      status: "sent"
+      status
     });
 
     const lastMsgContent = attachmentUrl ? (attachmentType === 'image' ? '📷 Image' : '📎 Attachment') : text;

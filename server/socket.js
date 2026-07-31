@@ -36,6 +36,25 @@ export function initSocket(httpServer, corsOrigin = "*") {
 
     // Join a personal room for user-specific events
     socket.join(userId);
+    
+    // Mark pending messages as delivered
+    try {
+      const chats = await Chat.find({ members: userId });
+      const chatIds = chats.map(c => c._id);
+      
+      const updated = await Message.updateMany(
+        { chatId: { $in: chatIds }, senderId: { $ne: userId }, status: "sent" },
+        { $set: { status: "delivered" } }
+      );
+      
+      if (updated.modifiedCount > 0) {
+        chatIds.forEach(cid => {
+          io.to(cid.toString()).emit("messages:delivered_updated", { chatId: cid.toString(), delivererId: userId });
+        });
+      }
+    } catch (err) {
+      console.error("Error marking messages as delivered:", err);
+    }
 
     // Join a specific chat room
     socket.on("chat:join", (chatId) => {

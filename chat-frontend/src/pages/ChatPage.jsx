@@ -22,6 +22,12 @@ const formatLastSeen = (dateString) => {
   return `last seen ${date.toLocaleDateString()}`;
 };
 
+const formatMessageTime = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 export default function ChatPage({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState("chats"); // 'chats', 'search', 'requests'
   const [chats, setChats] = useState([]);
@@ -151,6 +157,14 @@ export default function ChatPage({ user, onLogout }) {
       }
     };
     
+    const handleMessagesDelivered = ({ chatId, delivererId }) => {
+      if (selectedChat?._id === chatId && delivererId !== user._id) {
+        setMessages((prev) => 
+          prev.map(m => (m.senderId === user._id || m.senderId?._id === user._id) && m.status === "sent" ? { ...m, status: "delivered" } : m)
+        );
+      }
+    };
+    
     const handleUserStatus = ({ userId, status, lastSeen }) => {
       setUserStatuses((prev) => ({
         ...prev,
@@ -162,6 +176,7 @@ export default function ChatPage({ user, onLogout }) {
     socket.on("chat:created", handleChatListUpdate);
     socket.on("chat:removed", handleChatRemoved);
     socket.on("messages:read_updated", handleMessagesRead);
+    socket.on("messages:delivered_updated", handleMessagesDelivered);
     socket.on("user:status", handleUserStatus);
     
     return () => {
@@ -169,6 +184,7 @@ export default function ChatPage({ user, onLogout }) {
       socket.off("chat:created", handleChatListUpdate);
       socket.off("chat:removed", handleChatRemoved);
       socket.off("messages:read_updated", handleMessagesRead);
+      socket.off("messages:delivered_updated", handleMessagesDelivered);
       socket.off("user:status", handleUserStatus);
     };
   }, [socket, selectedChat, user._id]);
@@ -598,17 +614,24 @@ export default function ChatPage({ user, onLogout }) {
                             </div>
                           )}
 
-                          <div className="flex items-end gap-2">
-                            {msg.text && <span>{msg.text}</span>}
-                            {isMe && (
-                              <span className="mb-0.5 opacity-80" title={msg.status}>
-                                {msg.status === "read" ? (
-                                  <CheckCheck className="w-4 h-4 text-sky-300" />
-                                ) : (
-                                  <Check className="w-4 h-4" />
-                                )}
+                          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                            {msg.text && <span className="max-w-full break-words">{msg.text}</span>}
+                            <div className="flex items-center gap-1 ml-auto shrink-0 mt-1">
+                              <span className={`text-[10px] font-medium ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                {formatMessageTime(msg.createdAt || new Date())}
                               </span>
-                            )}
+                              {isMe && (
+                                <span className="opacity-90" title={msg.status}>
+                                  {msg.status === "read" ? (
+                                    <CheckCheck className="w-3.5 h-3.5 text-sky-300 drop-shadow-sm" />
+                                  ) : msg.status === "delivered" ? (
+                                    <CheckCheck className="w-3.5 h-3.5 text-indigo-200" />
+                                  ) : (
+                                    <Check className="w-3.5 h-3.5 text-indigo-200" />
+                                  )}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
