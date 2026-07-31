@@ -2,9 +2,6 @@ import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import VerifyEmail from "./pages/VerifyEmail";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
 import ChatPage from "./pages/ChatPage";
 import API from "./api/axios";
 
@@ -54,9 +51,6 @@ function AppContent() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />} />
       <Route path="/register" element={user ? <Navigate to="/" /> : <Register />} />
-      <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
       <Route 
         path="/" 
         element={

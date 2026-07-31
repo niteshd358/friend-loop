@@ -7,22 +7,49 @@ import { getIO } from "../socket.js";
 export const searchUsers = async (req, res) => {
   try {
     const { query } = req.query;
-    if (!query) return res.json([]);
+    let users;
     
-    // Find users by username or email, excluding the current user
-    const users = await User.find({
-      $and: [
-        { _id: { $ne: req.user.id } },
-        {
-          $or: [
-            { username: { $regex: query, $options: "i" } },
-            { email: { $regex: query, $options: "i" } },
-          ],
-        },
-      ],
-    }).select("username email");
+    if (!query) {
+      users = await User.find({ _id: { $ne: req.user.id } }).lean().select("username email profileImage");
+    } else {
+      users = await User.find({
+        $and: [
+          { _id: { $ne: req.user.id } },
+          {
+            $or: [
+              { username: { $regex: query, $options: "i" } },
+              { email: { $regex: query, $options: "i" } },
+            ],
+          },
+        ],
+      }).lean().select("username email profileImage");
+    }
+
+    const chats = await Chat.find({ members: req.user.id });
+    const chatMemberIds = chats.flatMap(chat => chat.members.map(id => id.toString()));
+
+    const requests = await FriendRequest.find({
+      $or: [{ sender: req.user.id }, { receiver: req.user.id }],
+      status: "pending"
+    });
+
+    const augmentedUsers = users.map(u => {
+      let status = "none";
+      if (chatMemberIds.includes(u._id.toString())) {
+        status = "friends";
+      } else {
+        const req = requests.find(r => 
+          (r.sender.toString() === req.user.id && r.receiver.toString() === u._id.toString()) ||
+          (r.receiver.toString() === req.user.id && r.sender.toString() === u._id.toString())
+        );
+        if (req) {
+          status = req.sender.toString() === req.user.id ? "request_sent" : "request_received";
+        }
+      }
+      return { ...u, relationship: status };
+    });
     
-    res.json(users);
+    res.json(augmentedUsers);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

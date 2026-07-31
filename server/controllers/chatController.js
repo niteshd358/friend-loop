@@ -25,7 +25,7 @@ export const getMyChats = async (req, res) => {
   try {
     const me = req.user.id;
     const chats = await Chat.find({ members: me })
-      .populate("members", "username email")
+      .populate("members", "username email firstName lastName profileImage")
       .sort({ updatedAt: -1 });
     res.json(chats);
   } catch (err) {

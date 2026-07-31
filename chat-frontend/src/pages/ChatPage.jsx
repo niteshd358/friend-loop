@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
 import API from "../api/axios";
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import ProfileModal from "../components/ProfileModal";
 import { 
@@ -150,7 +151,7 @@ export default function ChatPage({ user, onLogout }) {
 
   // Handle Search Users
   useEffect(() => {
-    if (activeTab === "search" && userSearchQuery.trim()) {
+    if (activeTab === "search") {
       const delayFn = setTimeout(() => {
         API.get(`/friend-requests/search?query=${userSearchQuery}`)
           .then((res) => setSearchResults(res.data))
@@ -225,6 +226,7 @@ export default function ChatPage({ user, onLogout }) {
     try {
       const res = await API.post("/friend-requests/send", { receiverId });
       alert(res.data.msg);
+      setSearchResults(prev => prev.map(u => u._id === receiverId ? { ...u, relationship: "request_sent" } : u));
     } catch (err) {
       alert(err.response?.data?.msg || "Failed to send request");
     }
@@ -252,6 +254,7 @@ export default function ChatPage({ user, onLogout }) {
       if (selectedChat?.members?.some(m => m._id === friendId)) {
         setSelectedChat(null);
       }
+      setSearchResults(prev => prev.map(u => u._id === friendId ? { ...u, relationship: "none" } : u));
     } catch (err) {
       alert(err.response?.data?.msg || "Failed to remove friend");
     }
@@ -385,7 +388,6 @@ export default function ChatPage({ user, onLogout }) {
               </div>
               <div className="space-y-2 px-2">
                 {searchResults.map((u) => {
-                  const isFriend = chats.some(c => c.members.some(m => m._id === u._id));
                   return (
                     <div key={u._id} className="p-3 border border-slate-100 rounded-xl flex items-center justify-between hover:bg-slate-50">
                       <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setViewingProfileId(u._id)}>
@@ -398,13 +400,21 @@ export default function ChatPage({ user, onLogout }) {
                         </div>
                         <span className="font-semibold text-sm text-slate-700 group-hover:text-indigo-600 transition-colors">{u.username}</span>
                       </div>
-                      {isFriend ? (
+                      {u.relationship === "friends" ? (
                         <button 
                           onClick={() => handleRemoveFriend(u._id)}
                           className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
                         >
                           Unfriend
                         </button>
+                      ) : u.relationship === "request_sent" ? (
+                        <span className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                          Request Sent
+                        </span>
+                      ) : u.relationship === "request_received" ? (
+                        <span className="bg-orange-100 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                          Pending Reply
+                        </span>
                       ) : (
                         <button 
                           onClick={() => handleSendRequest(u._id)}
@@ -416,8 +426,12 @@ export default function ChatPage({ user, onLogout }) {
                     </div>
                   );
                 })}
-                {userSearchQuery && searchResults.length === 0 && (
-                  <div className="text-center text-slate-400 text-sm mt-4">No users found.</div>
+                {searchResults.length === 0 && (
+                  <div className="text-center text-slate-400 text-sm mt-4">
+                    {userSearchQuery 
+                      ? "No users found matching your search." 
+                      : "No other users are registered on the app yet."}
+                  </div>
                 )}
               </div>
             </>
@@ -505,7 +519,6 @@ export default function ChatPage({ user, onLogout }) {
               <AnimatePresence initial={false}>
                 {messages.map((msg, idx) => {
                   const isMe = typeof msg.senderId === 'object' ? msg.senderId._id === user._id : msg.senderId === user._id;
-                  const senderInitial = isMe ? user.username[0] : (selectedChat.isGroupChat ? "U" : selectedChat.members.find(m => m._id !== user._id)?.username[0] || "U");
 
                   return (
                     <motion.div key={msg._id || idx} initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className={`flex gap-3 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
@@ -635,7 +648,6 @@ export default function ChatPage({ user, onLogout }) {
               // This is a quick patch. Normally you'd propagate this up to App.js 
               // where the master user state lives, but here we can just update localStorage 
               // or force a refresh to get the new avatar everywhere.
-              const prevData = JSON.parse(localStorage.getItem("user") || "{}");
               Object.assign(user, updatedUser); // mutate local reference to immediately update UI
               // To properly trigger re-renders in other components that rely on user object,
               // we can re-fetch chats which populates members with new data.

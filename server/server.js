@@ -2,6 +2,8 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import http from "http";
@@ -19,11 +21,26 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
+
+// Security Middlewares
+app.use(helmet());
+app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Increased for development/testing
+  message: { msg: "Too many requests from this IP, please try again later." }
+});
+app.use("/api/", limiter);
+
 app.use(express.json());
 
 // Serve uploads folder statically
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || "*", credentials: true }));
+
+const corsOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+app.use(cors({ origin: corsOrigin, credentials: true }));
 
 // Health
 app.get("/", (_req, res) => res.send("API running"));
@@ -43,7 +60,7 @@ mongoose
 
 // HTTP + Socket
 const server = http.createServer(app);
-initSocket(server, process.env.CLIENT_ORIGIN || "*");
+initSocket(server, corsOrigin);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on :${PORT} 🚀`));

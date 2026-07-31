@@ -8,7 +8,7 @@ export const getMessages = async (req, res) => {
 
     const messages = await Message.find({ chatId })
       .sort({ createdAt: 1 })
-      .populate("senderId", "name email");
+      .populate("senderId", "username email firstName lastName profileImage");
 
     res.json(messages);
   } catch (err) {
@@ -34,7 +34,7 @@ export const sendMessage = async (req, res) => {
     await Chat.findByIdAndUpdate(chatId, { lastMessage: lastMsgContent });
 
     // Populate sender details before emitting
-    msg = await msg.populate("senderId", "name email");
+    msg = await msg.populate("senderId", "username email firstName lastName profileImage");
 
     // Emit to socket room
     try {

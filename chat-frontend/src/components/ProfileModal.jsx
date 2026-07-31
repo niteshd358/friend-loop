@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Camera, Save, User, Calendar, Edit2, Loader2 } from "lucide-react";
 import API from "../api/axios";

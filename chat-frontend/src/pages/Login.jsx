@@ -1,7 +1,8 @@
 import { useState } from "react";
+// eslint-disable-next-line no-unused-vars
 import { motion } from "framer-motion";
 import { Mail, Lock, LogIn, ArrowRight } from "lucide-react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import API from "../api/axios";
 
 export default function Login({ onLogin }) {
@@ -9,7 +10,6 @@ export default function Login({ onLogin }) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,12 +20,7 @@ export default function Login({ onLogin }) {
       const { token, user } = res.data;
       if (onLogin) onLogin(token, user);
     } catch (err) {
-      if (err.response?.status === 403 && err.response?.data?.unverifiedEmail) {
-        // Redirect to verify email
-        navigate("/verify-email", { state: { email: err.response.data.unverifiedEmail } });
-      } else {
-        setError(err.response?.data?.msg || "Login failed. Please try again.");
-      }
+      setError(err.response?.data?.msg || "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -94,11 +89,6 @@ export default function Login({ onLogin }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-            </div>
-            <div className="flex justify-end mt-2">
-              <Link to="/forgot-password" className="text-sm text-white/70 hover:text-white transition-colors hover:underline">
-                Forgot Password?
-              </Link>
             </div>
           </div>
 
