@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
 import API from "../api/axios";
-// eslint-disable-next-line no-unused-vars
-import { motion, AnimatePresence } from "framer-motion";
 import ProfileModal from "../components/ProfileModal";
 import { 
   LogOut, Send, Search, Paperclip, Smile, MoreVertical,
-  MessageSquare, UserPlus, Bell, Check, X, CheckCheck, User, Image as ImageIcon, FileText
+  MessageSquare, UserPlus, Bell, Check, X, CheckCheck, User, Image as ImageIcon, FileText, ArrowLeft
 } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 
@@ -309,10 +307,10 @@ export default function ChatPage({ user, onLogout }) {
   return (
     <div className="h-screen flex bg-slate-50 overflow-hidden font-sans">
       {/* Sidebar */}
-      <div className="w-[320px] lg:w-[380px] bg-white border-r border-slate-200/60 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10">
+      <div className={`w-full md:w-[320px] lg:w-[380px] bg-white border-r border-slate-200 flex flex-col z-10 ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
         
         {/* User Profile & Header */}
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0">
           <div 
             className="flex items-center gap-3 cursor-pointer group hover:bg-slate-50 p-1.5 -ml-1.5 rounded-xl transition-colors"
             onClick={() => setViewingProfileId(user._id)}
@@ -390,7 +388,7 @@ export default function ChatPage({ user, onLogout }) {
                     const isOnline = syncedStatus ? syncedStatus.isOnline : otherUser?.isOnline;
 
                     return (
-                      <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} key={chat._id} onClick={() => setSelectedChat(chat)} className={`p-3 rounded-xl cursor-pointer transition-all flex items-center gap-3 ${isSelected ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20" : "hover:bg-slate-50 text-slate-700"}`}>
+                      <div key={chat._id} onClick={() => setSelectedChat(chat)} className={`p-3 rounded-xl cursor-pointer transition-all flex items-center gap-3 ${isSelected ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20" : "hover:bg-slate-50 text-slate-700"}`}>
                         <div 
                           className={`relative w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0 border ${isSelected ? "border-indigo-400/50" : "border-slate-200"}`}
                           onClick={(e) => {
@@ -418,7 +416,7 @@ export default function ChatPage({ user, onLogout }) {
                             </span>
                           )}
                         </div>
-                      </motion.div>
+                      </div>
                     );
                   })
                 )}
@@ -535,13 +533,20 @@ export default function ChatPage({ user, onLogout }) {
       </div>
 
       {/* Chat Window */}
-      <div className="flex-1 flex flex-col mesh-bg relative">
+      <div className={`flex-1 flex flex-col bg-white relative ${!selectedChat ? 'hidden md:flex' : 'flex'}`}>
         {selectedChat ? (
           <>
             {/* Chat Header */}
-            <div className="h-[72px] px-6 border-b border-slate-200/50 glass flex items-center justify-between sticky top-0 z-10">
-              <div 
-                className="flex items-center gap-4 cursor-pointer group hover:bg-slate-50/50 p-2 -ml-2 rounded-2xl transition-colors"
+            <div className="h-[72px] px-4 md:px-6 border-b border-slate-200 bg-white flex items-center justify-between sticky top-0 z-10">
+              <div className="flex items-center gap-2 md:gap-4">
+                <button 
+                  onClick={() => setSelectedChat(null)}
+                  className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div 
+                  className="flex items-center gap-3 cursor-pointer group hover:bg-slate-50 p-2 -ml-2 rounded-xl transition-colors"
                 onClick={() => {
                   if (!selectedChat.isGroupChat) {
                     const otherUser = selectedChat.members.find(m => m._id !== user._id);
@@ -580,16 +585,16 @@ export default function ChatPage({ user, onLogout }) {
                   })()}
                 </div>
               </div>
+              </div>
             </div>
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <AnimatePresence initial={false}>
                 {messages.map((msg, idx) => {
                   const isMe = typeof msg.senderId === 'object' ? msg.senderId._id === user._id : msg.senderId === user._id;
 
                   return (
-                    <motion.div key={msg._id || idx} initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className={`flex gap-3 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                    <div key={msg._id || idx} className={`flex gap-3 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 mt-auto border border-slate-200 bg-white shadow-sm`}>
                         {isMe ? (
                           user.profileImage ? <img src={user.profileImage.startsWith('http') ? user.profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${user.profileImage}`} className="w-full h-full object-cover" /> : <DefaultAvatar className="w-full h-full" />
@@ -635,10 +640,9 @@ export default function ChatPage({ user, onLogout }) {
                           </div>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
-              </AnimatePresence>
               <div ref={messagesEndRef} />
             </div>
 
@@ -698,15 +702,15 @@ export default function ChatPage({ user, onLogout }) {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
-            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", bounce: 0.5 }} className="text-center z-10 glass p-10 rounded-3xl shadow-xl border border-white/50 max-w-sm mx-auto">
-              <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl shadow-lg shadow-indigo-500/30 flex items-center justify-center mx-auto mb-6 rotate-3 hover:rotate-0 transition-transform">
-                <MessageSquare className="w-10 h-10 text-white -rotate-3 hover:rotate-0 transition-transform" />
+            <div className="text-center z-10 p-10 rounded-3xl shadow-xl border border-slate-100 max-w-sm mx-auto bg-white">
+              <div className="w-20 h-20 bg-indigo-50 rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-6">
+                <MessageSquare className="w-10 h-10 text-indigo-500" />
               </div>
               <h2 className="text-2xl font-bold text-slate-800 mb-3 font-sans tracking-tight">Connect & Chat</h2>
               <p className="text-slate-500 text-[15px] leading-relaxed">
                 Select a conversation or find new friends to start messaging instantly.
               </p>
-            </motion.div>
+            </div>
           </div>
         )}
       </div>

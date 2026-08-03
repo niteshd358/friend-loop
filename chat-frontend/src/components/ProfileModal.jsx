@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-// eslint-disable-next-line no-unused-vars
-import { motion, AnimatePresence } from "framer-motion";
 import { X, Camera, Save, User, Calendar, Edit2, Loader2 } from "lucide-react";
 import API from "../api/axios";
 
@@ -80,24 +78,18 @@ export default function ProfileModal({ userId, isMe, onClose, onUpdate }) {
   if (!userId) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+    <>
+      <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans"
         onClick={onClose}
       >
-        <motion.div
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
+        <div
           onClick={(e) => e.stopPropagation()}
           className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden relative"
         >
           {/* Header Background */}
-          <div className="h-32 bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 relative">
-            <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/20 hover:bg-black/40 p-1.5 rounded-full backdrop-blur-md transition-all">
+          <div className="h-32 bg-slate-100 border-b border-slate-200 relative">
+            <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-white hover:bg-slate-50 p-1.5 rounded-full shadow-sm transition-all border border-slate-200">
               <X className="w-5 h-5" />
             </button>
             {isMe && !isEditing && (
@@ -209,8 +201,8 @@ export default function ProfileModal({ userId, isMe, onClose, onUpdate }) {
               </div>
             )}
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        </div>
+      </div>
+    </>
   );
 }

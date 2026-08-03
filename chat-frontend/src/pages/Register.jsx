@@ -1,6 +1,4 @@
 import { useState } from "react";
-// eslint-disable-next-line no-unused-vars
-import { motion } from "framer-motion";
 import { User, Mail, Lock, UserPlus, ArrowRight } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../api/axios";
@@ -41,124 +39,99 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 p-4 font-sans">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="glass w-full max-w-md p-8 rounded-3xl shadow-2xl relative overflow-hidden"
-      >
-        <div className="absolute top-0 left-0 -mt-16 -ml-16 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-        <div className="absolute bottom-0 right-0 -mb-16 -mr-16 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-
-        <div className="text-center mb-8 relative z-10">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="w-16 h-16 bg-white/20 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-inner"
-          >
-            <UserPlus className="w-8 h-8 text-white" />
-          </motion.div>
-          <h2 className="text-3xl font-bold text-white mb-2">Create Account</h2>
-          <p className="text-white/70">Join us and start chatting</p>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans text-slate-900">
+      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+        <div className="text-center mb-8">
+          <div className="w-12 h-12 bg-indigo-50 rounded-xl mx-auto flex items-center justify-center mb-4">
+            <UserPlus className="w-6 h-6 text-indigo-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-1">Create Account</h2>
+          <p className="text-slate-500 text-sm">Join us and start chatting</p>
         </div>
 
         {error && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            className="bg-red-500/20 border border-red-500/50 text-white px-4 py-3 rounded-xl mb-6 text-sm relative z-10"
-          >
+          <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-6 text-sm border border-red-100">
             {error}
-          </motion.div>
+          </div>
         )}
 
         {success && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            className="bg-green-500/20 border border-green-500/50 text-white px-4 py-3 rounded-xl mb-6 text-sm relative z-10"
-          >
+          <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg mb-6 text-sm border border-green-100">
             {success}
-          </motion.div>
+          </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <User className="h-5 w-5 text-white/50" />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-slate-400" />
               </div>
               <input
                 type="text"
-                placeholder="Username"
+                placeholder="Enter your username"
                 required
-                className="w-full bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
+                className="w-full bg-white border border-slate-300 text-slate-900 placeholder-slate-400 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
             </div>
           </div>
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-white/50" />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Mail className="h-5 w-5 text-slate-400" />
               </div>
               <input
                 type="email"
-                placeholder="Email Address"
+                placeholder="Enter your email"
                 required
-                className="w-full bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
+                className="w-full bg-white border border-slate-300 text-slate-900 placeholder-slate-400 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
           </div>
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-white/50" />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-slate-400" />
               </div>
               <input
                 type="password"
-                placeholder="Password"
+                placeholder="Create a password"
                 required
-                className="w-full bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
+                className="w-full bg-white border border-slate-300 text-slate-900 placeholder-slate-400 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <button
             type="submit"
             disabled={isLoading || !!success}
-            className="w-full bg-white text-pink-600 font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group mt-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full bg-indigo-600 text-white font-medium py-2.5 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 mt-6 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {isLoading ? (
-              <span className="animate-pulse">Creating Account...</span>
-            ) : (
+            {isLoading ? "Creating Account..." : (
               <>
                 Sign Up
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4" />
               </>
             )}
-          </motion.button>
+          </button>
         </form>
 
-        <p className="mt-8 text-sm text-center text-white/70 relative z-10">
+        <p className="mt-6 text-sm text-center text-slate-500">
           Already have an account?{" "}
-          <Link
-            to="/login"
-            className="text-white font-semibold hover:underline decoration-2 underline-offset-4"
-          >
+          <Link to="/login" className="text-indigo-600 font-medium hover:underline">
             Sign in
           </Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

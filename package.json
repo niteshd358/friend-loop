@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "Root package for fullstack deployment",
   "scripts": {
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix chat-frontend\"",
     "build": "npm install --prefix server && npm install --prefix chat-frontend --include=dev && npm run build --prefix chat-frontend",
     "start": "npm start --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }
