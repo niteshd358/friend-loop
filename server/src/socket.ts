@@ -15,14 +15,25 @@ export const getOnlineUsers = () => onlineUsers;
 
 let ioInstance: Server;
 
-const pubClient = new Redis(process.env.REDIS_URI || "redis://localhost:6379");
-const subClient = pubClient.duplicate();
+let pubClient: Redis | null = null;
+let subClient: Redis | null = null;
 
 export function initSocket(httpServer: any, corsOrigin = "*") {
   const io = new Server(httpServer, {
     cors: { origin: corsOrigin, credentials: true },
-    adapter: createAdapter(pubClient, subClient)
   });
+
+  if (process.env.NODE_ENV !== "test") {
+    try {
+      pubClient = new Redis(process.env.REDIS_URI || "redis://localhost:6379");
+      subClient = pubClient.duplicate();
+      io.adapter(createAdapter(pubClient, subClient));
+      console.log("Socket.io Redis adapter connected ✅");
+    } catch (err) {
+      console.error("Redis adapter error:", err);
+    }
+  }
+
   ioInstance = io;
 
   io.use((socket: AuthenticatedSocket, next) => {

@@ -15,13 +15,14 @@ import messageRoutes from "./routes/message.js";
 import friendRequestRoutes from "./routes/friendRequest.js";
 import profileRoutes from "./routes/profile.js";
 import { initSocket } from "./socket.js";
+import { setupSwagger } from "./swagger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 
 // Security Middlewares
 app.use(helmet());
@@ -37,6 +38,9 @@ app.use("/api/", limiter);
 
 app.use(express.json());
 app.use(cookieParser());
+
+// Setup Swagger UI
+setupSwagger(app);
 
 // Serve uploads folder statically
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -64,10 +68,12 @@ app.use("/api/friend-requests", friendRequestRoutes);
 app.use("/api/profile", profileRoutes);
 
 // DB
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected ✅"))
-  .catch((err) => console.error(err));
+if (process.env.NODE_ENV !== "test") {
+  mongoose
+    .connect(process.env.MONGO_URI)
+    .then(() => console.log("MongoDB connected ✅"))
+    .catch((err) => console.error(err));
+}
 
 // Catch-all route for React Router (must be AFTER all API routes)
 if (process.env.NODE_ENV === "production") {
@@ -80,5 +86,7 @@ if (process.env.NODE_ENV === "production") {
 const server = http.createServer(app);
 initSocket(server, corsOrigin);
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on :${PORT} 🚀`));
+if (process.env.NODE_ENV !== "test") {
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => console.log(`Server running on :${PORT} 🚀`));
+}
