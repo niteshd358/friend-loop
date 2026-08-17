@@ -4,9 +4,10 @@ import API from "../api/axios";
 import ProfileModal from "../components/ProfileModal";
 import { 
   LogOut, Send, Search, Paperclip, Smile, MoreVertical,
-  MessageSquare, UserPlus, Bell, Check, X, CheckCheck, User, Image as ImageIcon, FileText, ArrowLeft
+  MessageSquare, UserPlus, Bell, Check, X, CheckCheck, User, Image as ImageIcon, FileText, ArrowLeft, Lock
 } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
+import { encryptMessageDual, decryptMessageDual } from "../utils/crypto";
 
 const formatLastSeen = (dateString) => {
   if (!dateString) return "";
@@ -102,8 +103,17 @@ export default function ChatPage({ user, onLogout }) {
       localStorage.setItem("activeChatId", selectedChat._id);
       
       API.get(`/messages/${selectedChat._id}`)
-        .then((res) => {
-          setMessages(res.data);
+        .then(async (res) => {
+          const privateKey = localStorage.getItem("privateKey");
+          const decryptedMessages = await Promise.all(res.data.map(async (m) => {
+            if (m.text && m.text.startsWith("E2EE:") && privateKey) {
+              const isSender = (typeof m.senderId === 'object' ? m.senderId._id : m.senderId) === user._id;
+              m.text = await decryptMessageDual(privateKey, isSender, m.text);
+            }
+            return m;
+          }));
+          
+          setMessages(decryptedMessages);
           if (socket) {
             socket.emit("messages:mark_read", { chatId: selectedChat._id });
           }
@@ -126,11 +136,16 @@ export default function ChatPage({ user, onLogout }) {
   useEffect(() => {
     if (!socket) return;
     
-    const handleNewMessage = (msg) => {
+    const handleNewMessage = async (msg) => {
       fetchChats(); // Update chat order
       if (msg.chatId === selectedChat?._id) {
+        const privateKey = localStorage.getItem("privateKey");
+        if (msg.text && msg.text.startsWith("E2EE:") && privateKey) {
+          const isSender = (typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId) === user._id;
+          msg.text = await decryptMessageDual(privateKey, isSender, msg.text);
+        }
         setMessages((prev) => [...prev, msg]);
-        if (msg.senderId !== user._id) {
+        if (msg.senderId !== user._id && (typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId) !== user._id) {
           socket.emit("messages:mark_read", { chatId: selectedChat._id });
         }
       }
@@ -219,9 +234,23 @@ export default function ChatPage({ user, onLogout }) {
         attachmentType = uploadRes.data.attachmentType;
       }
 
+      let textToSend = newMsg;
+      const otherUser = selectedChat.members.find(m => m._id !== user._id);
+      
+      // If 1-on-1 chat and both users have public keys, encrypt it
+      // For now we get our own public key from backend or assume we generated it
+      // To simplify, if we have a private key, we use it. We actually need OUR public key too.
+      // Since it's stored on backend, we need it. For now, let's fetch it from user obj or skip our own encryption if missing
+      // Actually we will just use the other user's public key, but for dual we need ours.
+      // If we don't have our own public key in `user`, we can just encrypt with their key and not read it ourselves later,
+      // but let's assume `user.publicKey` exists.
+      if (!selectedChat.isGroupChat && otherUser?.publicKey && user.publicKey) {
+        textToSend = await encryptMessageDual(user.publicKey, otherUser.publicKey, newMsg);
+      }
+
       await API.post("/messages", { 
         chatId: selectedChat._id, 
-        text: newMsg,
+        text: textToSend,
         attachmentUrl,
         attachmentType
       });

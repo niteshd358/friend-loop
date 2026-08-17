@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/authMiddleware.js";
 import {
   signup,
@@ -8,14 +9,22 @@ import {
   updateProfile,
   deleteAccount,
   getMe,
-  demoLogin
+  demoLogin,
+  refresh
 } from "../controllers/authController.js";
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { msg: "Too many login attempts, please try again later." }
+});
 
 const router = express.Router();
 
-router.post("/signup", signup);
-router.post("/login", login);
-router.post("/demo", demoLogin);
+router.post("/signup", authLimiter, signup);
+router.post("/login", authLimiter, login);
+router.post("/demo", authLimiter, demoLogin);
+router.get("/refresh", refresh);
 router.get("/profile", authMiddleware, getProfile);
 router.post("/logout", authMiddleware, logout);
 router.put("/profile/update", authMiddleware, updateProfile);

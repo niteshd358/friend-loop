@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Mail, Lock, LogIn, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import API from "../api/axios";
+import { generateKeyPair, exportPublicKey, exportPrivateKey } from "../utils/crypto";
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -14,8 +15,20 @@ export default function Login({ onLogin }) {
     setIsLoading(true);
     setError("");
     try {
-      const res = await API.post("/auth/login", { email, password });
+      let publicKey = null;
+      let privateKey = localStorage.getItem("privateKey");
+      
+      if (!privateKey) {
+        const keyPair = await generateKeyPair();
+        publicKey = await exportPublicKey(keyPair.publicKey);
+        privateKey = await exportPrivateKey(keyPair.privateKey);
+      }
+      
+      const res = await API.post("/auth/login", { email, password, publicKey });
       const { token, user } = res.data;
+      
+      if (privateKey) localStorage.setItem("privateKey", privateKey);
+      
       if (onLogin) onLogin(token, user);
     } catch (err) {
       setError(err.response?.data?.msg || "Login failed. Please try again.");
@@ -101,8 +114,15 @@ export default function Login({ onLogin }) {
               setIsLoading(true);
               setError("");
               try {
-                const res = await API.post("/auth/demo");
+                const keyPair = await generateKeyPair();
+                const publicKey = await exportPublicKey(keyPair.publicKey);
+                const privateKey = await exportPrivateKey(keyPair.privateKey);
+
+                const res = await API.post("/auth/demo", { publicKey });
                 const { token, user } = res.data;
+                
+                localStorage.setItem("privateKey", privateKey);
+                
                 if (onLogin) onLogin(token, user);
               } catch (err) {
                 setError(err.response?.data?.msg || "Demo login failed.");

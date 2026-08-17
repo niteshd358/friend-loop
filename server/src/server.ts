@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 import http from "http";
@@ -35,6 +36,7 @@ const limiter = rateLimit({
 app.use("/api/", limiter);
 
 app.use(express.json());
+app.use(cookieParser());
 
 // Serve uploads folder statically
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));

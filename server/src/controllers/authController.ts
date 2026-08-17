@@ -1,11 +1,17 @@
-// @ts-nocheck
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { Request, Response } from "express";
 
-export const signup = async (req, res) => {
+const generateTokens = (userId: string) => {
+  const accessToken = jwt.sign({ id: userId }, process.env.JWT_SECRET as string, { expiresIn: "15m" });
+  const refreshToken = jwt.sign({ id: userId }, (process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET) as string, { expiresIn: "7d" });
+  return { accessToken, refreshToken };
+};
+
+export const signup = async (req: Request, res: Response) => {
   try {
-    const { username, email, password } = req.body as any;
+    const { username, email, password, publicKey } = req.body as any;
 
     const existingEmail = await User.findOne({ email });
     if (existingEmail) return res.status(400).json({ msg: "Email already in use" });
@@ -18,7 +24,8 @@ export const signup = async (req, res) => {
     const newUser = new User({
       username,
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      publicKey
     });
 
     await newUser.save();
@@ -29,9 +36,9 @@ export const signup = async (req, res) => {
   }
 };
 
-export const login = async (req, res) => {
+export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body as any; // 'email' field here can actually contain username or email
+    const { email, password, publicKey } = req.body as any; // 'email' field here can actually contain username or email
 
     // Search by either email or username
     const user = await User.findOne({
@@ -43,9 +50,21 @@ export const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    if (publicKey) {
+      user.publicKey = publicKey;
+      await user.save();
+    }
 
-    res.json({ token, user: { id: user._id, username: user.username, email: user.email } });
+    const { accessToken, refreshToken } = generateTokens(user._id.toString());
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ token: accessToken, user: { id: user._id, username: user.username, email: user.email, publicKey: user.publicKey } });
   } catch (err) {
     res.status(500).json({ error: (err as any).message });
   }
@@ -86,8 +105,16 @@ export const demoLogin = async (req, res) => {
       await Chat.create({ members: [guestUser._id, botUser._id] });
     }
 
-    const token = jwt.sign({ id: guestUser._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-    res.json({ token, user: { id: guestUser._id, username: guestUser.username, email: guestUser.email } });
+    const { accessToken, refreshToken } = generateTokens(guestUser._id.toString());
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ token: accessToken, user: { id: guestUser._id, username: guestUser.username, email: guestUser.email } });
   } catch (err) {
     res.status(500).json({ error: (err as any).message });
   }
@@ -99,7 +126,12 @@ export const getProfile = async (req, res) => {
     if (!user) return res.status(404).json({ msg: "User not found" });
 
     res.json({
-      user,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        publicKey: user.publicKey
+      },
       msg: "Profile fetched successfully ✅",
     });
   } catch (err) {
@@ -107,7 +139,8 @@ export const getProfile = async (req, res) => {
   }
 };
 
-export const logout = (req, res) => {
+export const logout = (req: Request, res: Response) => {
+  res.clearCookie("refreshToken");
   res.json({ msg: "User logged out successfully 🚪" });
 };
 
@@ -162,5 +195,22 @@ export const getMe = async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(401).json({ msg: "Invalid token" });
+  }
+};
+
+export const refresh = async (req: Request, res: Response) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) return res.status(401).json({ msg: "No refresh token" });
+
+    const decoded = jwt.verify(refreshToken, (process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET) as string) as any;
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(401).json({ msg: "Invalid refresh token" });
+
+    const { accessToken } = generateTokens(user._id.toString());
+
+    res.json({ token: accessToken });
+  } catch (err) {
+    res.status(401).json({ msg: "Invalid refresh token" });
   }
 };

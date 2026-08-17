@@ -3,7 +3,7 @@ import Chat from "../models/Chat.js";
 class ChatRepository {
   async getUserChats(userId: string) {
     return Chat.find({ members: { $in: [userId] } })
-      .populate("members", "username email profileImage isOnline lastSeen")
+      .populate("members", "username email profileImage isOnline lastSeen publicKey")
       .populate("latestMessage")
       .sort({ updatedAt: -1 });
   }

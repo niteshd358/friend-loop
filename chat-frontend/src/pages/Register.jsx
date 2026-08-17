@@ -2,6 +2,7 @@ import { useState } from "react";
 import { User, Mail, Lock, UserPlus, ArrowRight } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../api/axios";
+import { generateKeyPair, exportPublicKey, exportPrivateKey } from "../utils/crypto";
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -18,11 +19,23 @@ export default function Register() {
     setError("");
     setSuccess("");
     try {
+      let publicKey = null;
+      let privateKey = localStorage.getItem("privateKey");
+      
+      if (!privateKey) {
+        const keyPair = await generateKeyPair();
+        publicKey = await exportPublicKey(keyPair.publicKey);
+        privateKey = await exportPrivateKey(keyPair.privateKey);
+      }
+
       const res = await API.post("/auth/signup", {
         username,
         email,
         password,
+        publicKey
       });
+      
+      if (privateKey) localStorage.setItem("privateKey", privateKey);
 
       setSuccess(res.data.msg || "Registration successful! Redirecting to login...");
       
