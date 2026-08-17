@@ -3,17 +3,30 @@ import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
 import { getIO } from "../socket.js";
 
-export const getMessages = async (req, res) => {
+export const getMessages = async (req: Request, res: Response) => {
   try {
     const { chatId } = req.params;
+    const { cursor, limit = 50 } = req.query as any;
 
-    const messages = await Message.find({ chatId })
-      .sort({ createdAt: 1 })
+    let query: any = { chatId };
+    if (cursor) {
+      const cursorMessage = await Message.findById(cursor);
+      if (cursorMessage) {
+        query.createdAt = { $lt: cursorMessage.createdAt };
+      }
+    }
+
+    const messages = await Message.find(query)
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
       .populate("senderId", "username email firstName lastName profileImage");
 
-    res.json(messages);
-  } catch (err) {
-    res.status(500).json({ error: (err as any).message });
+    res.json({
+      messages: messages.reverse(),
+      hasMore: messages.length === Number(limit)
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -96,16 +109,4 @@ export const sendMessage = async (req, res) => {
   }
 };
 
-export const uploadMessageAttachment = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ msg: "No file uploaded" });
-    }
-    const attachmentUrl = `/uploads/${req.file.filename}`;
-    const attachmentType = req.file.mimetype.startsWith('image/') ? 'image' : 'file';
-    
-    res.json({ attachmentUrl, attachmentType });
-  } catch (err) {
-    res.status(500).json({ error: (err as any).message });
-  }
-};
+

@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ChatPage from "./pages/ChatPage";
 import API from "./api/axios";
+
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const ChatPage = lazy(() => import("./pages/ChatPage"));
 
 // Custom PrivateRoute component
 const PrivateRoute = ({ children, user, loading }) => {
@@ -48,18 +49,20 @@ function AppContent() {
   if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
 
   return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />} />
-      <Route path="/register" element={user ? <Navigate to="/" /> : <Register />} />
-      <Route 
-        path="/" 
-        element={
-          <PrivateRoute user={user} loading={loading}>
-            <ChatPage user={user} onLogout={handleLogout} />
-          </PrivateRoute>
-        } 
-      />
-    </Routes>
+    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-50 text-indigo-500 font-semibold text-xl">Loading Application...</div>}>
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />} />
+        <Route path="/register" element={user ? <Navigate to="/" /> : <Register />} />
+        <Route 
+          path="/" 
+          element={
+            <PrivateRoute user={user} loading={loading}>
+              <ChatPage user={user} onLogout={handleLogout} />
+            </PrivateRoute>
+          } 
+        />
+      </Routes>
+    </Suspense>
   );
 }
 

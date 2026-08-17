@@ -25,9 +25,8 @@ export const updateProfile = async (req, res) => {
     let profileImage = undefined;
 
     if (req.file) {
-      // Create a URL path to the uploaded file
-      // e.g. /uploads/12345-avatar.png
-      profileImage = `/uploads/${req.file.filename}`;
+      // Cloudinary returns the secure URL in req.file.path
+      profileImage = req.file.path;
     }
 
     const updates = {};

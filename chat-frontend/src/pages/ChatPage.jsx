@@ -35,6 +35,8 @@ export default function ChatPage({ user, onLogout }) {
     return saved ? { _id: saved, members: [], isGroupChat: false } : null; // Partial mock, will be updated by chats
   });
   const [messages, setMessages] = useState([]);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [newMsg, setNewMsg] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -57,14 +59,19 @@ export default function ChatPage({ user, onLogout }) {
   
   const socket = useSocket();
   const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Only scroll to bottom on initial load or new sent message
+  // We'll manage scroll separately when fetching older messages
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (messages.length > 0 && !isLoadingMessages && !hasMoreMessages) {
+       scrollToBottom();
+    }
+  }, []);
 
   // Fetch initial data
   useEffect(() => {
@@ -101,11 +108,12 @@ export default function ChatPage({ user, onLogout }) {
   useEffect(() => {
     if (selectedChat && selectedChat.members?.length > 0) {
       localStorage.setItem("activeChatId", selectedChat._id);
+      setIsLoadingMessages(true);
       
-      API.get(`/messages/${selectedChat._id}`)
+      API.get(`/messages/${selectedChat._id}?limit=50`)
         .then(async (res) => {
           const privateKey = localStorage.getItem("privateKey");
-          const decryptedMessages = await Promise.all(res.data.map(async (m) => {
+          const decryptedMessages = await Promise.all(res.data.messages.map(async (m) => {
             if (m.text && m.text.startsWith("E2EE:") && privateKey) {
               const isSender = (typeof m.senderId === 'object' ? m.senderId._id : m.senderId) === user._id;
               m.text = await decryptMessageDual(privateKey, isSender, m.text);
@@ -114,11 +122,18 @@ export default function ChatPage({ user, onLogout }) {
           }));
           
           setMessages(decryptedMessages);
+          setHasMoreMessages(res.data.hasMore);
+          setIsLoadingMessages(false);
+          setTimeout(scrollToBottom, 100);
+
           if (socket) {
             socket.emit("messages:mark_read", { chatId: selectedChat._id });
           }
         })
-        .catch((err) => console.error(err));
+        .catch((err) => {
+           console.error(err);
+           setIsLoadingMessages(false);
+        });
         
       if (socket) {
         socket.emit("chat:join", selectedChat._id);
@@ -131,6 +146,42 @@ export default function ChatPage({ user, onLogout }) {
       localStorage.removeItem("activeChatId");
     }
   }, [selectedChat, socket]);
+
+  const loadMoreMessages = async () => {
+    if (isLoadingMessages || !hasMoreMessages || messages.length === 0) return;
+    setIsLoadingMessages(true);
+    
+    const oldestMessageId = messages[0]._id;
+    const scrollContainer = scrollContainerRef.current;
+    const previousScrollHeight = scrollContainer?.scrollHeight;
+
+    try {
+      const res = await API.get(`/messages/${selectedChat._id}?cursor=${oldestMessageId}&limit=50`);
+      
+      const privateKey = localStorage.getItem("privateKey");
+      const decryptedOldMessages = await Promise.all(res.data.messages.map(async (m) => {
+        if (m.text && m.text.startsWith("E2EE:") && privateKey) {
+          const isSender = (typeof m.senderId === 'object' ? m.senderId._id : m.senderId) === user._id;
+          m.text = await decryptMessageDual(privateKey, isSender, m.text);
+        }
+        return m;
+      }));
+
+      setMessages(prev => [...decryptedOldMessages, ...prev]);
+      setHasMoreMessages(res.data.hasMore);
+      
+      // Maintain scroll position
+      setTimeout(() => {
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight - previousScrollHeight;
+        }
+      }, 0);
+    } catch (err) {
+      console.error("Failed to load more messages", err);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
 
   // Listen for socket messages and chat updates
   useEffect(() => {
@@ -145,6 +196,7 @@ export default function ChatPage({ user, onLogout }) {
           msg.text = await decryptMessageDual(privateKey, isSender, msg.text);
         }
         setMessages((prev) => [...prev, msg]);
+        setTimeout(scrollToBottom, 100);
         if (msg.senderId !== user._id && (typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId) !== user._id) {
           socket.emit("messages:mark_read", { chatId: selectedChat._id });
         }
@@ -618,7 +670,26 @@ export default function ChatPage({ user, onLogout }) {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div 
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto p-6 space-y-6"
+              onScroll={(e) => {
+                if (e.target.scrollTop < 50) {
+                  loadMoreMessages();
+                }
+              }}
+            >
+                {hasMoreMessages && (
+                  <div className="flex justify-center pb-4">
+                    <button 
+                      onClick={loadMoreMessages} 
+                      disabled={isLoadingMessages}
+                      className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-500 py-1.5 px-4 rounded-full transition-colors"
+                    >
+                      {isLoadingMessages ? "Loading..." : "Load older messages"}
+                    </button>
+                  </div>
+                )}
                 {messages.map((msg, idx) => {
                   const isMe = typeof msg.senderId === 'object' ? msg.senderId._id === user._id : msg.senderId === user._id;
 
