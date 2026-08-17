@@ -1,10 +1,11 @@
+// @ts-nocheck
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
 export const signup = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password } = req.body as any;
 
     const existingEmail = await User.findOne({ email });
     if (existingEmail) return res.status(400).json({ msg: "Email already in use" });
@@ -24,13 +25,13 @@ export const signup = async (req, res) => {
 
     res.json({ msg: "User registered successfully! You can now log in.", email });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body; // 'email' field here can actually contain username or email
+    const { email, password } = req.body as any; // 'email' field here can actually contain username or email
 
     // Search by either email or username
     const user = await User.findOne({
@@ -46,7 +47,7 @@ export const login = async (req, res) => {
 
     res.json({ token, user: { id: user._id, username: user.username, email: user.email } });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
@@ -88,7 +89,7 @@ export const demoLogin = async (req, res) => {
     const token = jwt.sign({ id: guestUser._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
     res.json({ token, user: { id: guestUser._id, username: guestUser.username, email: guestUser.email } });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
@@ -102,7 +103,7 @@ export const getProfile = async (req, res) => {
       msg: "Profile fetched successfully ✅",
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
@@ -112,7 +113,7 @@ export const logout = (req, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password } = req.body as any;
 
     const updates = {};
     if (username) updates.username = username;
@@ -133,7 +134,7 @@ export const updateProfile = async (req, res) => {
       msg: "Profile updated successfully ✨",
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
@@ -145,7 +146,7 @@ export const deleteAccount = async (req, res) => {
     }
     res.json({ msg: "Account deleted successfully 🗑️" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 

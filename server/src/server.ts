@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -47,11 +47,11 @@ if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../chat-frontend/dist")));
 
   // Health check API route
-  app.get("/api/health", (_req, res) => res.send("API running"));
+  app.get("/api/health", (_req: Request, res: Response) => res.send("API running"));
 
 } else {
   // Health check for development
-  app.get("/", (_req, res) => res.send("API running"));
+  app.get("/", (_req: Request, res: Response) => res.send("API running"));
 }
 
 // Routes
@@ -69,7 +69,7 @@ mongoose
 
 // Catch-all route for React Router (must be AFTER all API routes)
 if (process.env.NODE_ENV === "production") {
-  app.get(/(.*)/, (req, res) => {
+  app.get(/(.*)/, (req: Request, res: Response) => {
     res.sendFile(path.resolve(__dirname, "../chat-frontend/dist", "index.html"));
   });
 }

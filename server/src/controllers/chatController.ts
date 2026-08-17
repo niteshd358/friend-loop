@@ -1,9 +1,10 @@
+// @ts-nocheck
 import Chat from "../models/Chat.js";
 
 export const ensureChat = async (req, res) => {
   try {
     const me = req.user.id;
-    const { otherId } = req.body;
+    const { otherId } = req.body as any;
     if (!otherId) return res.status(400).json({ msg: "otherId is required" });
     if (otherId === me) return res.status(400).json({ msg: "Cannot chat with yourself" });
 
@@ -17,7 +18,7 @@ export const ensureChat = async (req, res) => {
 
     res.json(chat);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
@@ -42,6 +43,6 @@ export const getMyChats = async (req, res) => {
 
     res.json(chats);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };

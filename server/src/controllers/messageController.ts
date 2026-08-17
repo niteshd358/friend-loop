@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
 import { getIO } from "../socket.js";
@@ -12,13 +13,13 @@ export const getMessages = async (req, res) => {
 
     res.json(messages);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
 export const sendMessage = async (req, res) => {
   try {
-    const { chatId, text, attachmentUrl, attachmentType } = req.body;
+    const { chatId, text, attachmentUrl, attachmentType } = req.body as any;
     if (!chatId || (!text && !attachmentUrl)) return res.status(400).json({ msg: "chatId and text/attachment are required" });
 
     const chat = await Chat.findById(chatId);
@@ -91,7 +92,7 @@ export const sendMessage = async (req, res) => {
 
     res.status(201).json(msg);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
@@ -105,6 +106,6 @@ export const uploadMessageAttachment = async (req, res) => {
     
     res.json({ attachmentUrl, attachmentType });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };

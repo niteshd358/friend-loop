@@ -1,25 +1,35 @@
-import { Server } from "socket.io";
-import jwt from "jsonwebtoken";
+import { Server, Socket } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { Redis } from "ioredis";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import Chat from "./models/Chat.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
 
-const onlineUsers = new Map();
+interface AuthenticatedSocket extends Socket {
+  user?: { id: string };
+}
+
+const onlineUsers = new Map<string, string>();
 export const getOnlineUsers = () => onlineUsers;
 
-let ioInstance;
+let ioInstance: Server;
 
-export function initSocket(httpServer, corsOrigin = "*") {
+const pubClient = new Redis(process.env.REDIS_URI || "redis://localhost:6379");
+const subClient = pubClient.duplicate();
+
+export function initSocket(httpServer: any, corsOrigin = "*") {
   const io = new Server(httpServer, {
     cors: { origin: corsOrigin, credentials: true },
+    adapter: createAdapter(pubClient, subClient)
   });
   ioInstance = io;
 
-  io.use((socket, next) => {
+  io.use((socket: AuthenticatedSocket, next) => {
     try {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error("No token"));
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
+      const payload = jwt.verify(token, process.env.JWT_SECRET) as any;
       socket.user = { id: payload.id };
       next();
     } catch (e) {
@@ -27,8 +37,9 @@ export function initSocket(httpServer, corsOrigin = "*") {
     }
   });
 
-  io.on("connection", async (socket) => {
-    const userId = socket.user.id;
+  io.on("connection", async (socket: AuthenticatedSocket) => {
+    const userId = socket.user?.id;
+    if (!userId) return;
     onlineUsers.set(userId, socket.id);
     
     // Broadcast online status globally

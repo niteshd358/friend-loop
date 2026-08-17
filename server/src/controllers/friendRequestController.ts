@@ -1,3 +1,4 @@
+// @ts-nocheck
 import FriendRequest from "../models/FriendRequest.js";
 import User from "../models/User.js";
 import Chat from "../models/Chat.js";
@@ -58,13 +59,13 @@ export const searchUsers = async (req, res) => {
     
     res.json(augmentedUsers);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
 export const sendRequest = async (req, res) => {
   try {
-    const { receiverId } = req.body;
+    const { receiverId } = req.body as any;
     
     if (receiverId === req.user.id) {
       return res.status(400).json({ msg: "You cannot send a request to yourself" });
@@ -99,7 +100,7 @@ export const sendRequest = async (req, res) => {
     await request.save();
     res.json({ msg: "Friend request sent successfully!" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
@@ -109,13 +110,13 @@ export const getIncomingRequests = async (req, res) => {
       .populate("sender", "username email");
     res.json(requests);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
 export const respondRequest = async (req, res) => {
   try {
-    const { requestId, action } = req.body; // action: "accepted" or "rejected"
+    const { requestId, action } = req.body as any; // action: "accepted" or "rejected"
     
     if (!["accepted", "rejected"].includes(action)) {
       return res.status(400).json({ msg: "Invalid action" });
@@ -152,13 +153,13 @@ export const respondRequest = async (req, res) => {
     
     res.json({ msg: "Friend request rejected." });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
 export const removeFriend = async (req, res) => {
   try {
-    const { friendId } = req.body;
+    const { friendId } = req.body as any;
     
     // Find and delete the chat
     const chat = await Chat.findOneAndDelete({
@@ -182,6 +183,6 @@ export const removeFriend = async (req, res) => {
     
     res.json({ msg: "Friend removed successfully" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };

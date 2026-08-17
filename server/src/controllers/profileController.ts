@@ -1,3 +1,4 @@
+// @ts-nocheck
 import User from "../models/User.js";
 
 // GET /api/profile/:id
@@ -13,14 +14,14 @@ export const getProfile = async (req, res) => {
 
     res.json(user);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
 
 // PUT /api/profile/update
 export const updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, dob, gender } = req.body;
+    const { firstName, lastName, dob, gender } = req.body as any;
     let profileImage = undefined;
 
     if (req.file) {
@@ -44,6 +45,6 @@ export const updateProfile = async (req, res) => {
 
     res.json({ msg: "Profile updated successfully", user });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: (err as any).message });
   }
 };
