@@ -6,6 +6,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import http from "http";
 
@@ -33,9 +34,36 @@ app.set("trust proxy", 1);
 // Enforce Mongoose strictQuery to prevent query injection
 mongoose.set("strictQuery", true);
 
-// Security Middlewares
-app.use(helmet());
-app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
+// Security Middlewares - configure CSP to allow Cloudinary, jsdelivr emoji CDN, blob previews, and WebSockets
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "blob:",
+          "https://res.cloudinary.com",
+          "https://*.cloudinary.com",
+          "https://cdn.jsdelivr.net",
+          "https:",
+        ],
+        connectSrc: [
+          "'self'",
+          "https://res.cloudinary.com",
+          "https://*.cloudinary.com",
+          "ws:",
+          "wss:",
+        ],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+        fontSrc: ["'self'", "https:", "data:"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 // Rate Limiting
 const limiter = rateLimit({
@@ -53,8 +81,19 @@ app.use(sanitizeNoSql);
 // Setup Swagger UI
 setupSwagger(app);
 
-// Serve uploads folder statically
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Serve uploads folder statically with CORS headers
+const uploadsDir = path.resolve(__dirname, "../uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use(
+  "/uploads",
+  express.static(uploadsDir, {
+    setHeaders: (res) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+  })
+);
 
 const rawCorsOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 const corsOrigins = rawCorsOrigin.includes(",")
@@ -62,9 +101,11 @@ const corsOrigins = rawCorsOrigin.includes(",")
   : rawCorsOrigin;
 app.use(cors({ origin: corsOrigins, credentials: true }));
 
+const frontendDist = path.resolve(__dirname, "../../chat-frontend/dist");
+
 // Serve Frontend in Production
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../chat-frontend/dist")));
+  app.use(express.static(frontendDist));
 
   // Health check API route
   app.get("/api/health", (_req: Request, res: Response) => res.send("API running"));
@@ -92,7 +133,7 @@ if (process.env.NODE_ENV !== "test") {
 // Catch-all route for React Router (must be AFTER all API routes)
 if (process.env.NODE_ENV === "production") {
   app.get(/(.*)/, (req: Request, res: Response) => {
-    res.sendFile(path.resolve(__dirname, "../chat-frontend/dist", "index.html"));
+    res.sendFile(path.resolve(frontendDist, "index.html"));
   });
 }
 

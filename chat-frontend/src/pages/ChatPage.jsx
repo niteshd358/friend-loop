@@ -335,6 +335,44 @@ export default function ChatPage({ user, onLogout }) {
     }
   };
 
+  const getImageUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("blob:") || url.startsWith("data:")) {
+      return url;
+    }
+    const baseUrl = import.meta.env.MODE === "production"
+      ? ""
+      : (import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, "") || "http://localhost:5000");
+    const cleanPath = url.startsWith("/") ? url : `/${url}`;
+    return `${baseUrl}${cleanPath}`;
+  };
+
+  const SafeAvatar = ({ src, alt = "avatar", className = "w-full h-full", iconClass = "w-1/2 h-1/2" }) => {
+    const [hasError, setHasError] = useState(false);
+    const resolvedSrc = getImageUrl(src);
+
+    useEffect(() => {
+      setHasError(false);
+    }, [src]);
+
+    if (!resolvedSrc || hasError) {
+      return (
+        <div className={`flex items-center justify-center bg-indigo-50 text-indigo-400 ${className}`}>
+          <User className={iconClass} />
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={resolvedSrc}
+        alt={alt}
+        className={`${className} object-cover`}
+        onError={() => setHasError(true)}
+      />
+    );
+  };
+
   const DefaultAvatar = ({ className }) => (
     <div className={`flex items-center justify-center bg-indigo-50 text-indigo-300 ${className}`}>
       <User className="w-1/2 h-1/2" />
@@ -397,11 +435,7 @@ export default function ChatPage({ user, onLogout }) {
             onClick={() => setViewingProfileId(user._id)}
           >
             <div className="w-10 h-10 rounded-full bg-white text-slate-400 flex items-center justify-center shadow-md overflow-hidden relative border border-slate-100">
-              {user.profileImage ? (
-                <img src={user.profileImage.startsWith('http') ? user.profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${user.profileImage}`} alt="Me" className="w-full h-full object-cover" />
-              ) : (
-                <DefaultAvatar className="w-full h-full" />
-              )}
+              <SafeAvatar src={user.profileImage} alt="Me" />
               <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
                 <span className="text-[10px] text-white uppercase font-bold tracking-wider">Edit</span>
               </div>
@@ -480,9 +514,7 @@ export default function ChatPage({ user, onLogout }) {
                           {chat.isGroupChat ? (
                             <div className="w-full h-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-lg">{title[0]?.toUpperCase()}</div>
                           ) : (
-                            otherUser?.profileImage ? (
-                              <img src={otherUser.profileImage.startsWith('http') ? otherUser.profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${otherUser.profileImage}`} alt="avatar" className="w-full h-full object-cover" />
-                            ) : <DefaultAvatar className="w-full h-full" />
+                            <SafeAvatar src={otherUser?.profileImage} alt="avatar" />
                           )}
                         </div>
                         <div className="flex-1 overflow-hidden">
@@ -523,11 +555,7 @@ export default function ChatPage({ user, onLogout }) {
                     <div key={u._id} className="p-3 border border-slate-100 rounded-xl flex items-center justify-between hover:bg-slate-50">
                       <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setViewingProfileId(u._id)}>
                         <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-sm group-hover:ring-2 ring-indigo-400 ring-offset-2 transition-all">
-                          {u.profileImage ? (
-                            <img src={u.profileImage.startsWith('http') ? u.profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${u.profileImage}`} alt="avatar" className="w-full h-full object-cover" />
-                          ) : (
-                            <DefaultAvatar className="w-full h-full" />
-                          )}
+                          <SafeAvatar src={u.profileImage} alt={u.username} />
                         </div>
                         <span className="font-semibold text-sm text-slate-700 group-hover:text-indigo-600 transition-colors">{u.username}</span>
                       </div>
@@ -580,11 +608,7 @@ export default function ChatPage({ user, onLogout }) {
                   <div key={req._id} className="p-3 border border-slate-100 rounded-xl flex flex-col gap-3 bg-slate-50">
                     <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setViewingProfileId(req.sender._id)}>
                       <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-sm group-hover:ring-2 ring-purple-400 ring-offset-2 transition-all">
-                        {req.sender.profileImage ? (
-                          <img src={req.sender.profileImage.startsWith('http') ? req.sender.profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${req.sender.profileImage}`} alt="avatar" className="w-full h-full object-cover" />
-                        ) : (
-                          <DefaultAvatar className="w-full h-full" />
-                        )}
+                        <SafeAvatar src={req.sender?.profileImage} alt={req.sender?.username} />
                       </div>
                       <div>
                         <span className="font-semibold text-sm text-slate-700 block group-hover:text-purple-600 transition-colors">{req.sender.username}</span>
@@ -639,9 +663,7 @@ export default function ChatPage({ user, onLogout }) {
                   {selectedChat.isGroupChat ? (
                     <div className="w-full h-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-lg">{selectedChat.chatName?.[0]?.toUpperCase()}</div>
                   ) : (
-                    selectedChat.members.find(m => m._id !== user._id)?.profileImage ? (
-                      <img src={selectedChat.members.find(m => m._id !== user._id).profileImage.startsWith('http') ? selectedChat.members.find(m => m._id !== user._id).profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${selectedChat.members.find(m => m._id !== user._id).profileImage}`} alt="avatar" className="w-full h-full object-cover" />
-                    ) : <DefaultAvatar className="w-full h-full" />
+                    <SafeAvatar src={selectedChat.members.find(m => m._id !== user._id)?.profileImage} alt="avatar" />
                   )}
                 </div>
                 <div>
@@ -697,9 +719,9 @@ export default function ChatPage({ user, onLogout }) {
                     <div key={msg._id || idx} className={`flex gap-3 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 mt-auto border border-slate-200 bg-white shadow-sm`}>
                         {isMe ? (
-                          user.profileImage ? <img src={user.profileImage.startsWith('http') ? user.profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${user.profileImage}`} className="w-full h-full object-cover" /> : <DefaultAvatar className="w-full h-full" />
+                          <SafeAvatar src={user.profileImage} alt="Me" />
                         ) : (
-                          selectedChat.members.find(m => m._id === msg.senderId)?.profileImage ? <img src={selectedChat.members.find(m => m._id === msg.senderId).profileImage.startsWith('http') ? selectedChat.members.find(m => m._id === msg.senderId).profileImage : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${selectedChat.members.find(m => m._id === msg.senderId).profileImage}`} className="w-full h-full object-cover" /> : <DefaultAvatar className="w-full h-full" />
+                          <SafeAvatar src={selectedChat.members.find(m => m._id === msg.senderId)?.profileImage} alt="Sender" />
                         )}
                       </div>
                       <div className={`max-w-[70%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
@@ -707,11 +729,22 @@ export default function ChatPage({ user, onLogout }) {
                           
                           {/* Attachment Rendering */}
                           {msg.attachmentUrl && (
-                            <div className="mb-1 rounded-xl overflow-hidden max-w-[240px]">
+                            <div className="mb-1 rounded-xl overflow-hidden max-w-[260px] bg-black/5">
                               {msg.attachmentType === 'image' ? (
-                                <img src={msg.attachmentUrl.startsWith('http') ? msg.attachmentUrl : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${msg.attachmentUrl}`} alt="Attachment" className="w-full h-auto cursor-pointer hover:opacity-90" onClick={() => window.open(msg.attachmentUrl.startsWith('http') ? msg.attachmentUrl : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${msg.attachmentUrl}`, '_blank')} />
+                                <img 
+                                  src={getImageUrl(msg.attachmentUrl)} 
+                                  alt="Attachment" 
+                                  className="w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity rounded-xl" 
+                                  onClick={() => window.open(getImageUrl(msg.attachmentUrl), '_blank')}
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    if (e.currentTarget.parentElement) {
+                                      e.currentTarget.parentElement.innerHTML = '<div class="p-2.5 text-xs text-slate-500 bg-slate-100 rounded-lg flex items-center gap-1.5 font-medium"><span>⚠️</span> Image preview unavailable</div>';
+                                    }
+                                  }}
+                                />
                               ) : (
-                                <div onClick={() => window.open(msg.attachmentUrl.startsWith('http') ? msg.attachmentUrl : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${msg.attachmentUrl}`, '_blank')} className="flex items-center gap-2 p-3 bg-black/10 rounded-xl cursor-pointer hover:bg-black/20 transition-colors">
+                                <div onClick={() => window.open(getImageUrl(msg.attachmentUrl), '_blank')} className="flex items-center gap-2 p-3 bg-black/10 rounded-xl cursor-pointer hover:bg-black/20 transition-colors">
                                   <FileText className="w-6 h-6" />
                                   <span className="text-sm font-medium truncate">File Attachment</span>
                                 </div>
@@ -751,19 +784,19 @@ export default function ChatPage({ user, onLogout }) {
               
               {/* Attachment Preview UI */}
               {attachmentPreview && (
-                <div className="absolute bottom-full left-4 mb-2 p-2 bg-white rounded-xl shadow-lg border border-slate-200 flex items-center gap-3 animate-in slide-in-from-bottom-2">
+                <div className="absolute bottom-full left-4 mb-2 p-2 bg-white rounded-xl shadow-lg border border-slate-200 flex items-center gap-3 animate-in slide-in-from-bottom-2 z-30">
                   {attachmentPreview === 'file' ? (
                     <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500">
                       <FileText className="w-6 h-6" />
                     </div>
                   ) : (
-                    <img src={attachmentPreview} alt="preview" className="w-12 h-12 object-cover rounded-lg" />
+                    <img src={attachmentPreview} alt="preview" className="w-12 h-12 object-cover rounded-lg border border-slate-200" />
                   )}
-                  <div className="flex flex-col max-w-[120px]">
-                    <span className="text-xs font-semibold text-slate-700 truncate">{attachment.name}</span>
-                    <span className="text-[10px] text-slate-500">{(attachment.size / 1024).toFixed(0)} KB</span>
+                  <div className="flex flex-col max-w-[140px]">
+                    <span className="text-xs font-semibold text-slate-700 truncate">{attachment?.name}</span>
+                    <span className="text-[10px] text-slate-500">{((attachment?.size || 0) / 1024).toFixed(0)} KB</span>
                   </div>
-                  <button onClick={() => {setAttachment(null); setAttachmentPreview(null)}} className="p-1 text-slate-400 hover:bg-slate-100 rounded-full ml-2">
+                  <button onClick={() => { setAttachment(null); setAttachmentPreview(null); }} className="p-1 text-slate-400 hover:bg-slate-100 rounded-full ml-2">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -771,12 +804,19 @@ export default function ChatPage({ user, onLogout }) {
 
               {/* Emoji Picker Popup */}
               {showEmojiPicker && (
-                <div className="absolute bottom-full left-4 mb-2 shadow-2xl rounded-2xl overflow-hidden border border-slate-200 z-50 animate-in slide-in-from-bottom-4">
-                  <EmojiPicker 
-                    onEmojiClick={(emojiData) => setNewMsg((prev) => prev + emojiData.emoji)}
-                    autoFocusSearch={false}
-                  />
-                </div>
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
+                  <div className="absolute bottom-full left-4 mb-2 shadow-2xl rounded-2xl overflow-hidden border border-slate-200 z-50 animate-in slide-in-from-bottom-4 bg-white">
+                    <EmojiPicker 
+                      emojiStyle="native"
+                      lazyLoadEmojis={true}
+                      onEmojiClick={(emojiData) => setNewMsg((prev) => prev + emojiData.emoji)}
+                      autoFocusSearch={false}
+                      width={340}
+                      height={400}
+                    />
+                  </div>
+                </>
               )}
 
               <div className="max-w-4xl mx-auto flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 transition-all">

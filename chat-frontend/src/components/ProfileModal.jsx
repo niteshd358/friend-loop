@@ -2,6 +2,18 @@ import { useState, useEffect } from "react";
 import { X, Camera, Save, User, Calendar, Edit2, Loader2 } from "lucide-react";
 import API from "../api/axios";
 
+const getImageUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("blob:") || url.startsWith("data:")) {
+    return url;
+  }
+  const baseUrl = import.meta.env.MODE === "production"
+    ? ""
+    : (import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, "") || "http://localhost:5000");
+  const cleanPath = url.startsWith("/") ? url : `/${url}`;
+  return `${baseUrl}${cleanPath}`;
+};
+
 export default function ProfileModal({ userId, isMe, onClose, onUpdate }) {
   const [profile, setProfile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -29,10 +41,7 @@ export default function ProfileModal({ userId, isMe, onClose, onUpdate }) {
           gender: res.data.gender || "",
         });
         if (res.data.profileImage) {
-          const imgUrl = res.data.profileImage.startsWith('http') 
-            ? res.data.profileImage 
-            : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${res.data.profileImage}`;
-          setImagePreview(imgUrl);
+          setImagePreview(getImageUrl(res.data.profileImage));
         }
       } catch (err) {
         console.error(err);
@@ -104,7 +113,12 @@ export default function ProfileModal({ userId, isMe, onClose, onUpdate }) {
             <div className="relative">
               <div className="w-32 h-32 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden flex items-center justify-center">
                 {imagePreview ? (
-                  <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
+                  <img 
+                    src={getImageUrl(imagePreview)} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover" 
+                    onError={() => setImagePreview("")}
+                  />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-tr from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-500 text-4xl font-bold">
                     {profile?.username?.[0]?.toUpperCase() || <User className="w-12 h-12" />}
