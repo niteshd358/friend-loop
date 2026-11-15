@@ -116,6 +116,12 @@ export const sendRequest = async (req: any, res: Response) => {
     });
 
     await request.save();
+
+    try {
+      const io = getIO();
+      io.to(receiverId.toString()).emit("friend_request:received");
+    } catch {}
+
     res.json({ msg: "Friend request sent successfully!" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

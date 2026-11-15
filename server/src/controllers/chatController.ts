@@ -44,6 +44,14 @@ export const ensureChat = async (req: any, res: Response) => {
     }
 
     chat = await Chat.create({ members: [me, otherId] });
+
+    try {
+      const { getIO } = await import("../socket.js");
+      const io = getIO();
+      io.to(me).emit("chat:created");
+      io.to(otherId).emit("chat:created");
+    } catch {}
+
     res.json(chat);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

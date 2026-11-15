@@ -87,6 +87,11 @@ export function initSocket(httpServer: any, corsOrigin: any = "*") {
         ),
       ];
 
+      // Automatically join all authorized chat rooms so user receives instant message updates
+      chats.forEach((c) => {
+        socket.join(c._id.toString());
+      });
+
       friendIds.forEach((friendId) => {
         io.to(friendId).emit("user:status", { userId, status: "online" });
       });

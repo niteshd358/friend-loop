@@ -131,7 +131,16 @@ export const sendMessage = async (req: any, res: Response) => {
     // Emit to socket room
     try {
       const io = getIO();
+      // Emit to active chat room
       io.to(chatId).emit("chat:message", msg);
+
+      // Also emit to all chat members' personal rooms so their sidebar & alerts update instantly
+      if (chat && chat.members) {
+        chat.members.forEach((m: any) => {
+          const memberId = m._id ? m._id.toString() : m.toString();
+          io.to(memberId).emit("chat:message", msg);
+        });
+      }
 
       // Echo Bot Logic for demo interaction
       if (chat && chat.members) {
@@ -147,6 +156,7 @@ export const sendMessage = async (req: any, res: Response) => {
                 { $set: { status: "read" } }
               );
               io.to(chatId).emit("messages:read_updated", { chatId, readerId: botUser._id.toString() });
+              io.to(req.user.id).emit("messages:read_updated", { chatId, readerId: botUser._id.toString() });
 
               // Step 2: Reply after another 1s
               setTimeout(async () => {
@@ -159,6 +169,7 @@ export const sendMessage = async (req: any, res: Response) => {
                 await Chat.findByIdAndUpdate(chatId, { lastMessage: botMsg.text });
                 botMsg = await botMsg.populate("senderId", "username firstName lastName profileImage");
                 io.to(chatId).emit("chat:message", botMsg);
+                io.to(req.user.id).emit("chat:message", botMsg);
               }, 1000);
             }, 1500);
           }

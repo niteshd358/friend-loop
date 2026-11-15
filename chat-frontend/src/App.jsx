@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import API, { setAccessToken } from "./api/axios";
 import { clearPrivateKeyFromDB } from "./utils/crypto";
+import { SocketProvider } from "./context/SocketContext";
 
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -56,20 +57,22 @@ function AppContent() {
   if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
 
   return (
-    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-50 text-indigo-500 font-semibold text-xl">Loading Application...</div>}>
-      <Routes>
-        <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />} />
-        <Route path="/register" element={user ? <Navigate to="/" /> : <Register />} />
-        <Route 
-          path="/" 
-          element={
-            <PrivateRoute user={user} loading={loading}>
-              <ChatPage user={user} onLogout={handleLogout} />
-            </PrivateRoute>
-          } 
-        />
-      </Routes>
-    </Suspense>
+    <SocketProvider user={user}>
+      <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-50 text-indigo-500 font-semibold text-xl">Loading Application...</div>}>
+        <Routes>
+          <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />} />
+          <Route path="/register" element={user ? <Navigate to="/" /> : <Register />} />
+          <Route 
+            path="/" 
+            element={
+              <PrivateRoute user={user} loading={loading}>
+                <ChatPage user={user} onLogout={handleLogout} />
+              </PrivateRoute>
+            } 
+          />
+        </Routes>
+      </Suspense>
+    </SocketProvider>
   );
 }
 

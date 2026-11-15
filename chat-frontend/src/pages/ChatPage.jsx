@@ -79,20 +79,31 @@ export default function ChatPage({ user, onLogout }) {
     fetchIncomingRequests();
   }, []);
 
-  const fetchChats = () => {
+  const isInitialMount = useRef(true);
+  const selectedChatRef = useRef(selectedChat);
+
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
+
+  const fetchChats = (selectChatId = null) => {
     API.get("/chats/mine")
       .then((res) => {
         setChats(res.data);
-        // Re-hydrate full selectedChat if we only have a partial mock from localStorage
-        const savedChatId = localStorage.getItem("activeChatId");
-        if (savedChatId) {
-          const fullChat = res.data.find(c => c._id === savedChatId);
-          if (fullChat) {
-            setSelectedChat(fullChat);
-          } else {
-            localStorage.removeItem("activeChatId");
-            setSelectedChat(null);
+        if (isInitialMount.current) {
+          isInitialMount.current = false;
+          const targetId = selectChatId || localStorage.getItem("activeChatId");
+          if (targetId) {
+            const fullChat = res.data.find(c => c._id === targetId);
+            if (fullChat) {
+              setSelectedChat(fullChat);
+            } else {
+              localStorage.removeItem("activeChatId");
+            }
           }
+        } else if (selectChatId) {
+          const fullChat = res.data.find(c => c._id === selectChatId);
+          if (fullChat) setSelectedChat(fullChat);
         }
       })
       .catch((err) => console.error(err));
@@ -188,17 +199,25 @@ export default function ChatPage({ user, onLogout }) {
     if (!socket) return;
     
     const handleNewMessage = async (msg) => {
-      fetchChats(); // Update chat order
-      if (msg.chatId === selectedChat?._id) {
+      fetchChats(); // Update chat order and previews in sidebar
+      
+      const currentSelected = selectedChatRef.current;
+      if (msg.chatId === currentSelected?._id) {
         const privateKey = await getPrivateKeyFromDB();
+        let textToShow = msg.text;
         if (msg.text && msg.text.startsWith("E2EE:") && privateKey) {
           const isSender = (typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId) === user._id;
-          msg.text = await decryptMessageDual(privateKey, isSender, msg.text);
+          textToShow = await decryptMessageDual(privateKey, isSender, msg.text);
         }
-        setMessages((prev) => [...prev, msg]);
-        setTimeout(scrollToBottom, 100);
+        const messageToAdd = { ...msg, text: textToShow };
+        setMessages((prev) => {
+          if (prev.some(m => m._id && m._id === messageToAdd._id)) return prev;
+          return [...prev, messageToAdd];
+        });
+        setTimeout(scrollToBottom, 50);
+
         if (msg.senderId !== user._id && (typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId) !== user._id) {
-          socket.emit("messages:mark_read", { chatId: selectedChat._id });
+          socket.emit("messages:mark_read", { chatId: currentSelected._id });
         }
       }
     };
@@ -209,21 +228,21 @@ export default function ChatPage({ user, onLogout }) {
 
     const handleChatRemoved = (chatId) => {
       fetchChats();
-      if (selectedChat?._id === chatId) {
+      if (selectedChatRef.current?._id === chatId) {
         setSelectedChat(null);
       }
     };
 
     const handleMessagesRead = ({ chatId, readerId }) => {
-      if (selectedChat?._id === chatId && readerId !== user._id) {
+      if (selectedChatRef.current?._id === chatId && readerId !== user._id) {
         setMessages((prev) => 
-          prev.map(m => m.senderId === user._id || m.senderId?._id === user._id ? { ...m, status: "read" } : m)
+          prev.map(m => (m.senderId === user._id || m.senderId?._id === user._id) ? { ...m, status: "read" } : m)
         );
       }
     };
     
     const handleMessagesDelivered = ({ chatId, delivererId }) => {
-      if (selectedChat?._id === chatId && delivererId !== user._id) {
+      if (selectedChatRef.current?._id === chatId && delivererId !== user._id) {
         setMessages((prev) => 
           prev.map(m => (m.senderId === user._id || m.senderId?._id === user._id) && m.status === "sent" ? { ...m, status: "delivered" } : m)
         );
@@ -236,6 +255,10 @@ export default function ChatPage({ user, onLogout }) {
         [userId]: { isOnline: status === "online", lastSeen }
       }));
     };
+
+    const handleIncomingFriendRequest = () => {
+      fetchIncomingRequests();
+    };
     
     socket.on("chat:message", handleNewMessage);
     socket.on("chat:created", handleChatListUpdate);
@@ -243,6 +266,7 @@ export default function ChatPage({ user, onLogout }) {
     socket.on("messages:read_updated", handleMessagesRead);
     socket.on("messages:delivered_updated", handleMessagesDelivered);
     socket.on("user:status", handleUserStatus);
+    socket.on("friend_request:received", handleIncomingFriendRequest);
     
     return () => {
       socket.off("chat:message", handleNewMessage);
@@ -251,8 +275,9 @@ export default function ChatPage({ user, onLogout }) {
       socket.off("messages:read_updated", handleMessagesRead);
       socket.off("messages:delivered_updated", handleMessagesDelivered);
       socket.off("user:status", handleUserStatus);
+      socket.off("friend_request:received", handleIncomingFriendRequest);
     };
-  }, [socket, selectedChat, user._id]);
+  }, [socket, user._id]);
 
   // Handle Search Users
   useEffect(() => {
@@ -300,17 +325,28 @@ export default function ChatPage({ user, onLogout }) {
         textToSend = await encryptMessageDual(user.publicKey, otherUser.publicKey, newMsg);
       }
 
-      await API.post("/messages", { 
+      const res = await API.post("/messages", { 
         chatId: selectedChat._id, 
         text: textToSend,
         attachmentUrl,
         attachmentType
       });
       
+      const sentText = newMsg;
       setNewMsg("");
       setAttachment(null);
       setAttachmentPreview(null);
       setShowEmojiPicker(false);
+
+      if (res.data) {
+        const sentMsg = { ...res.data, text: sentText };
+        setMessages((prev) => {
+          if (prev.some(m => m._id && m._id === sentMsg._id)) return prev;
+          return [...prev, sentMsg];
+        });
+        setTimeout(scrollToBottom, 50);
+      }
+      fetchChats();
     } catch(err) {
       console.error(err);
       alert("Failed to send message");
