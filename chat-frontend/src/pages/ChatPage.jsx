@@ -282,11 +282,12 @@ export default function ChatPage({ user, onLogout }) {
   // Handle Search Users
   useEffect(() => {
     if (activeTab === "search") {
+      const delay = userSearchQuery.trim() ? 300 : 0;
       const delayFn = setTimeout(() => {
-        API.get(`/friend-requests/search?query=${userSearchQuery}`)
+        API.get(`/friend-requests/search?query=${encodeURIComponent(userSearchQuery)}`)
           .then((res) => setSearchResults(res.data))
           .catch((err) => console.error(err));
-      }, 500);
+      }, delay);
       return () => clearTimeout(delayFn);
     } else {
       setSearchResults([]);

@@ -9,26 +9,26 @@ import { isValidObjectId } from "../middleware/validate.js";
 // Utility to escape regex special characters to prevent ReDoS / regex injection
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Search for users to add as friends
+// Search for users to add as friends (shows all users when query is empty)
 export const searchUsers = async (req: any, res: Response) => {
   try {
     const { query } = req.query;
+    const filter: any = { _id: { $ne: req.user.id } };
 
-    // Regex search abuse prevention: require non-empty query of at least 2 chars
-    if (typeof query !== "string" || query.trim().length < 2) {
-      return res.json([]);
+    // If query is provided, filter safely by username, firstName, or lastName
+    if (typeof query === "string" && query.trim().length > 0) {
+      const sanitizedQuery = escapeRegex(query.trim());
+      filter.$or = [
+        { username: { $regex: sanitizedQuery, $options: "i" } },
+        { firstName: { $regex: sanitizedQuery, $options: "i" } },
+        { lastName: { $regex: sanitizedQuery, $options: "i" } },
+      ];
     }
 
-    const sanitizedQuery = escapeRegex(query.trim());
-
-    // Privacy & Security: Search by username only; do not expose or search arbitrary emails
-    const users = await User.find({
-      $and: [
-        { _id: { $ne: req.user.id } },
-        { username: { $regex: sanitizedQuery, $options: "i" } },
-      ],
-    })
-      .limit(20)
+    // Privacy & Security: Search excluding current user, omit email and sensitive fields
+    const users = await User.find(filter)
+      .limit(50)
+      .sort({ createdAt: -1 })
       .lean()
       // Privacy: omit email from public search results
       .select("username firstName lastName profileImage lastSeen");
