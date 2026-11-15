@@ -3,9 +3,22 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { Request, Response } from "express";
 
-const generateTokens = (userId: string) => {
-  const accessToken = jwt.sign({ id: userId }, process.env.JWT_SECRET as string, { expiresIn: "15m" });
-  const refreshToken = jwt.sign({ id: userId }, (process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET) as string, { expiresIn: "7d" });
+const getAccessSecret = () => process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || "supersecretkey";
+const getRefreshSecret = () => process.env.JWT_REFRESH_SECRET || process.env.REFRESH_TOKEN_SECRET || "supersecretrefreshkey";
+
+export const generateTokens = (userId: string, tokenVersion = 0) => {
+  const accessToken = jwt.sign(
+    { id: userId, typ: "access" },
+    getAccessSecret(),
+    { expiresIn: "15m" }
+  );
+
+  const refreshToken = jwt.sign(
+    { id: userId, typ: "refresh", tokenVersion },
+    getRefreshSecret(),
+    { expiresIn: "7d" }
+  );
+
   return { accessToken, refreshToken };
 };
 
@@ -13,24 +26,39 @@ export const signup = async (req: Request, res: Response) => {
   try {
     const { username, email, password, publicKey } = req.body as any;
 
-    const existingEmail = await User.findOne({ email });
+    if (
+      typeof username !== "string" ||
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      !username.trim() ||
+      !email.trim() ||
+      !password
+    ) {
+      return res.status(400).json({ msg: "Username, email, and password must be valid non-empty strings" });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim();
+
+    const existingEmail = await User.findOne({ email: cleanEmail });
     if (existingEmail) return res.status(400).json({ msg: "Email already in use" });
 
-    const existingUsername = await User.findOne({ username });
+    const existingUsername = await User.findOne({ username: cleanUsername });
     if (existingUsername) return res.status(400).json({ msg: "Username already taken" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({
-      username,
-      email,
+      username: cleanUsername,
+      email: cleanEmail,
       password: hashedPassword,
-      publicKey
+      publicKey: typeof publicKey === "string" ? publicKey : "",
+      tokenVersion: 0,
     });
 
     await newUser.save();
 
-    res.json({ msg: "User registered successfully! You can now log in.", email });
+    res.json({ msg: "User registered successfully! You can now log in.", email: cleanEmail });
   } catch (err) {
     res.status(500).json({ error: (err as any).message });
   }
@@ -38,11 +66,25 @@ export const signup = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password, publicKey } = req.body as any; // 'email' field here can actually contain username or email
+    const { email, password, publicKey } = req.body as any;
 
-    // Search by either email or username
+    if (
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      !email.trim() ||
+      !password
+    ) {
+      return res.status(400).json({ msg: "Email/username and password must be valid strings" });
+    }
+
+    const cleanIdentifier = email.trim();
+
+    // Safe query using primitive strings to prevent NoSQL operator injection
     const user = await User.findOne({
-      $or: [{ email: email }, { username: email }]
+      $or: [
+        { email: cleanIdentifier.toLowerCase() },
+        { username: cleanIdentifier }
+      ]
     });
 
     if (!user) return res.status(400).json({ msg: "User not found" });
@@ -50,77 +92,95 @@ export const login = async (req: Request, res: Response) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
-    if (publicKey) {
+    if (publicKey && typeof publicKey === "string") {
       user.publicKey = publicKey;
       await user.save();
     }
 
-    const { accessToken, refreshToken } = generateTokens(user._id.toString());
+    const tokenVersion = user.tokenVersion || 0;
+    const { accessToken, refreshToken } = generateTokens(user._id.toString(), tokenVersion);
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
+      path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ token: accessToken, user: { id: user._id, username: user.username, email: user.email, publicKey: user.publicKey } });
+    res.json({
+      token: accessToken,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        publicKey: user.publicKey,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: (err as any).message });
   }
 };
 
-export const demoLogin = async (req, res) => {
+export const demoLogin = async (req: Request, res: Response) => {
   try {
     const { default: Chat } = await import("../models/Chat.js");
 
-    let guestUser = await User.findOne({ email: "guest@demo.com" });
-    if (!guestUser) {
-      const hashedPassword = await bcrypt.hash("demo123", 10);
-      guestUser = await User.create({
-        username: "Guest User",
-        email: "guest@demo.com",
-        password: hashedPassword,
-        firstName: "Guest",
-        lastName: "User"
-      });
-    }
+    // Per-session ephemeral demo account to prevent sharing guest sessions between visitors
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const guestUsername = `Guest_${randomSuffix}`;
+    const guestEmail = `guest_${Date.now()}_${randomSuffix}@demo.com`;
+    const hashedPassword = await bcrypt.hash("demo123", 10);
+
+    const guestUser = await User.create({
+      username: guestUsername,
+      email: guestEmail,
+      password: hashedPassword,
+      firstName: "Guest",
+      lastName: "User",
+      tokenVersion: 0,
+      publicKey: typeof req.body?.publicKey === "string" ? req.body.publicKey : "",
+    });
 
     let botUser = await User.findOne({ email: "bot@demo.com" });
     if (!botUser) {
-      const hashedPassword = await bcrypt.hash("bot123", 10);
+      const botHashedPassword = await bcrypt.hash("bot123", 10);
       botUser = await User.create({
         username: "Echo Bot",
         email: "bot@demo.com",
-        password: hashedPassword,
+        password: botHashedPassword,
         firstName: "Echo",
-        lastName: "Bot"
+        lastName: "Bot",
       });
     }
 
-    let chat = await Chat.findOne({
-      members: { $all: [guestUser._id, botUser._id], $size: 2 },
-    });
-    if (!chat) {
-      await Chat.create({ members: [guestUser._id, botUser._id] });
-    }
+    // Create a dedicated isolated chat with Echo Bot for this guest session
+    await Chat.create({ members: [guestUser._id, botUser._id] });
 
-    const { accessToken, refreshToken } = generateTokens(guestUser._id.toString());
+    const { accessToken, refreshToken } = generateTokens(guestUser._id.toString(), 0);
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
+      path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ token: accessToken, user: { id: guestUser._id, username: guestUser.username, email: guestUser.email } });
+    res.json({
+      token: accessToken,
+      user: {
+        id: guestUser._id,
+        username: guestUser.username,
+        email: guestUser.email,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: (err as any).message });
   }
 };
 
-export const getProfile = async (req, res) => {
+export const getProfile = async (req: any, res: Response) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
     if (!user) return res.status(404).json({ msg: "User not found" });
@@ -130,7 +190,7 @@ export const getProfile = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        publicKey: user.publicKey
+        publicKey: user.publicKey,
       },
       msg: "Profile fetched successfully ✅",
     });
@@ -139,21 +199,34 @@ export const getProfile = async (req, res) => {
   }
 };
 
-export const logout = (req: Request, res: Response) => {
-  res.clearCookie("refreshToken");
+export const logout = async (req: any, res: Response) => {
+  try {
+    if (req.user?.id) {
+      // Invalidate existing refresh tokens upon explicit logout
+      await User.findByIdAndUpdate(req.user.id, { $inc: { tokenVersion: 1 } });
+    }
+  } catch (e) {
+    // Continue clearing cookie
+  }
+
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+  });
   res.json({ msg: "User logged out successfully 🚪" });
 };
 
-export const updateProfile = async (req, res) => {
+export const updateProfile = async (req: any, res: Response) => {
   try {
     const { username, email, password } = req.body as any;
 
-    const updates = {};
-    if (username) updates.username = username;
-    if (email) updates.email = email;
-    if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      updates.password = hashedPassword;
+    const updates: any = {};
+    if (typeof username === "string" && username.trim()) updates.username = username.trim();
+    if (typeof email === "string" && email.trim()) updates.email = email.trim().toLowerCase();
+    if (typeof password === "string" && password) {
+      updates.password = await bcrypt.hash(password, 10);
     }
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -171,30 +244,36 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-export const deleteAccount = async (req, res) => {
+export const deleteAccount = async (req: any, res: Response) => {
   try {
     const deletedUser = await User.findByIdAndDelete(req.user.id);
     if (!deletedUser) {
       return res.status(404).json({ msg: "User not found ❌" });
     }
+    res.clearCookie("refreshToken", { path: "/" });
     res.json({ msg: "Account deleted successfully 🗑️" });
   } catch (err) {
     res.status(500).json({ error: (err as any).message });
   }
 };
 
-export const getMe = async (req, res) => {
+export const getMe = async (req: Request, res: Response) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
     if (!token) return res.status(401).json({ msg: "No token" });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, getAccessSecret()) as any;
+    if (decoded.typ && decoded.typ !== "access") {
+      return res.status(401).json({ msg: "Invalid token type" });
+    }
+
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return res.status(404).json({ msg: "User not found" });
 
     res.json(user);
   } catch (err) {
-    res.status(401).json({ msg: "Invalid token" });
+    res.status(401).json({ msg: "Invalid or expired token" });
   }
 };
 
@@ -203,11 +282,41 @@ export const refresh = async (req: Request, res: Response) => {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) return res.status(401).json({ msg: "No refresh token" });
 
-    const decoded = jwt.verify(refreshToken, (process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET) as string) as any;
-    const user = await User.findById(decoded.id);
-    if (!user) return res.status(401).json({ msg: "Invalid refresh token" });
+    let decoded: any;
+    try {
+      decoded = jwt.verify(refreshToken, getRefreshSecret());
+    } catch (tokenErr) {
+      return res.status(401).json({ msg: "Invalid or expired refresh token" });
+    }
 
-    const { accessToken } = generateTokens(user._id.toString());
+    if (decoded.typ !== "refresh") {
+      return res.status(401).json({ msg: "Invalid token type" });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(401).json({ msg: "User not found" });
+
+    // Reuse detection: If tokenVersion does not match, all refresh tokens have been compromised/reused
+    if (user.tokenVersion !== decoded.tokenVersion) {
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
+      await user.save();
+      res.clearCookie("refreshToken", { path: "/" });
+      return res.status(401).json({ msg: "Refresh token has been revoked" });
+    }
+
+    // Token rotation: increment tokenVersion for the new refresh token
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user._id.toString(), user.tokenVersion);
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     res.json({ token: accessToken });
   } catch (err) {

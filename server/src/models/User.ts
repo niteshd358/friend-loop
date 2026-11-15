@@ -15,6 +15,10 @@ const userSchema = new mongoose.Schema({
     },
     publicKey: {
       type: String, // For E2E Encryption
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
     }
 }, { timestamps: true });
 

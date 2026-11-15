@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Mail, Lock, LogIn, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import API from "../api/axios";
-import { generateKeyPair, exportPublicKey, exportPrivateKey } from "../utils/crypto";
+import { generateKeyPair, exportPublicKey, getPrivateKeyFromDB, savePrivateKeyToDB } from "../utils/crypto";
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -16,19 +16,18 @@ export default function Login({ onLogin }) {
     setError("");
     try {
       let publicKey = null;
-      let privateKey = localStorage.getItem("privateKey");
-      
+      let privateKey = await getPrivateKeyFromDB();
+
       if (!privateKey) {
+        // Generate non-extractable key pair and persist in IndexedDB
         const keyPair = await generateKeyPair();
         publicKey = await exportPublicKey(keyPair.publicKey);
-        privateKey = await exportPrivateKey(keyPair.privateKey);
+        await savePrivateKeyToDB(keyPair.privateKey);
       }
-      
+
       const res = await API.post("/auth/login", { email, password, publicKey });
       const { token, user } = res.data;
-      
-      if (privateKey) localStorage.setItem("privateKey", privateKey);
-      
+
       if (onLogin) onLogin(token, user);
     } catch (err) {
       setError(err.response?.data?.msg || "Login failed. Please try again.");
@@ -56,14 +55,14 @@ export default function Login({ onLogin }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email or Username</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-slate-400" />
               </div>
               <input
                 type="text"
-                placeholder="Enter your email"
+                placeholder="Enter your email or username"
                 required
                 className="w-full bg-white border border-slate-300 text-slate-900 placeholder-slate-400 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 value={email}
@@ -100,7 +99,7 @@ export default function Login({ onLogin }) {
               </>
             )}
           </button>
-          
+
           <div className="relative flex py-4 items-center">
             <div className="flex-grow border-t border-slate-200"></div>
             <span className="flex-shrink-0 mx-4 text-slate-400 text-sm">or</span>
@@ -116,13 +115,11 @@ export default function Login({ onLogin }) {
               try {
                 const keyPair = await generateKeyPair();
                 const publicKey = await exportPublicKey(keyPair.publicKey);
-                const privateKey = await exportPrivateKey(keyPair.privateKey);
+                await savePrivateKeyToDB(keyPair.privateKey);
 
                 const res = await API.post("/auth/demo", { publicKey });
                 const { token, user } = res.data;
-                
-                localStorage.setItem("privateKey", privateKey);
-                
+
                 if (onLogin) onLogin(token, user);
               } catch (err) {
                 setError(err.response?.data?.msg || "Demo login failed.");

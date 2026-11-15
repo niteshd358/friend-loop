@@ -16,13 +16,22 @@ import friendRequestRoutes from "./routes/friendRequest.js";
 import profileRoutes from "./routes/profile.js";
 import { initSocket } from "./socket.js";
 import { setupSwagger } from "./swagger.js";
+import { sanitizeNoSql } from "./middleware/validate.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Ensure .env is loaded whether run from repo root or server dir
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 dotenv.config();
 
 export const app = express();
+
+// Set trust proxy for accurate IP identification behind reverse proxies (Render, Nginx, Cloudflare)
+app.set("trust proxy", 1);
+
+// Enforce Mongoose strictQuery to prevent query injection
+mongoose.set("strictQuery", true);
 
 // Security Middlewares
 app.use(helmet());
@@ -31,13 +40,15 @@ app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 // Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Increased for development/testing
+  max: 1000,
+  skip: () => process.env.NODE_ENV === "test",
   message: { msg: "Too many requests from this IP, please try again later." }
 });
 app.use("/api/", limiter);
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(sanitizeNoSql);
 
 // Setup Swagger UI
 setupSwagger(app);
@@ -45,8 +56,11 @@ setupSwagger(app);
 // Serve uploads folder statically
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-const corsOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
-app.use(cors({ origin: corsOrigin, credentials: true }));
+const rawCorsOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const corsOrigins = rawCorsOrigin.includes(",")
+  ? rawCorsOrigin.split(",").map(o => o.trim())
+  : rawCorsOrigin;
+app.use(cors({ origin: corsOrigins, credentials: true }));
 
 // Serve Frontend in Production
 if (process.env.NODE_ENV === "production") {
@@ -84,7 +98,7 @@ if (process.env.NODE_ENV === "production") {
 
 // HTTP + Socket
 const server = http.createServer(app);
-initSocket(server, corsOrigin);
+initSocket(server, corsOrigins);
 
 if (process.env.NODE_ENV !== "test") {
   const PORT = process.env.PORT || 5000;

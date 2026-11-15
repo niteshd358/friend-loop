@@ -1,6 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import API from "./api/axios";
+import API, { setAccessToken } from "./api/axios";
+import { clearPrivateKeyFromDB } from "./utils/crypto";
 
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -18,30 +19,36 @@ function AppContent() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      API.get("/auth/me")
-        .then((res) => {
-          setUser(res.data);
-          setLoading(false);
-        })
-        .catch(() => {
-          localStorage.removeItem("token");
-          setLoading(false);
-        });
-    } else {
-      setLoading(false);
-    }
+    // Silent Refresh via HttpOnly cookie: restore in-memory access token without localStorage
+    API.get("/auth/refresh")
+      .then((refreshRes) => {
+        setAccessToken(refreshRes.data.token);
+        return API.get("/auth/me");
+      })
+      .then((res) => {
+        setUser(res.data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setAccessToken(null);
+        setLoading(false);
+      });
   }, []);
 
   const handleLogin = (token, userData) => {
-    localStorage.setItem("token", token);
+    setAccessToken(token);
     setUser(userData);
     navigate("/");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    try {
+      await API.post("/auth/logout");
+    } catch (e) {
+      // Continue cleanup
+    }
+    setAccessToken(null);
+    await clearPrivateKeyFromDB();
     setUser(null);
     navigate("/login");
   };

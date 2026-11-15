@@ -1,12 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useState, useEffect } from "react";
-import API from "../api/axios";
+import API, { setAccessToken, getAccessToken } from "../axios";
+import { clearPrivateKeyFromDB } from "../../utils/crypto";
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [token, setTokenState] = useState(getAccessToken() || "");
 
   useEffect(() => {
     if (token) {
@@ -16,15 +17,22 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
 
-  const login = (token) => {
-    localStorage.setItem("token", token);
-    setToken(token);
+  const login = (newToken, userData) => {
+    setAccessToken(newToken);
+    setTokenState(newToken);
+    if (userData) setUser(userData);
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    setToken("");
+  const logout = async () => {
+    try {
+      await API.post("/auth/logout");
+    } catch (e) {
+      // Continue
+    }
+    setAccessToken(null);
+    setTokenState("");
     setUser(null);
+    await clearPrivateKeyFromDB();
   };
 
   return (

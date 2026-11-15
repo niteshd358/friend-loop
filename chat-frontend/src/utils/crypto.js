@@ -1,6 +1,77 @@
-// Utility for End-to-End Encryption using WebCrypto API
+// Utility for End-to-End Encryption using WebCrypto API + IndexedDB Non-Extractable Key Storage
 
-// Generate RSA key pair for the user
+const DB_NAME = "FriendLoopSecurity";
+const DB_VERSION = 1;
+const STORE_NAME = "crypto_keys";
+
+// Open or initialize IndexedDB for non-extractable cryptographic key storage
+export const getIndexedDB = () => {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      return reject(new Error("IndexedDB is not supported in this environment"));
+    }
+    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// Save a non-extractable CryptoKey directly to IndexedDB (structured clone)
+export const savePrivateKeyToDB = async (privateKey) => {
+  try {
+    const db = await getIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      store.put(privateKey, "privateKey");
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.error("Failed to save private key to IndexedDB:", err);
+  }
+};
+
+// Retrieve CryptoKey object from IndexedDB
+export const getPrivateKeyFromDB = async () => {
+  try {
+    const db = await getIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get("privateKey");
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error("Failed to read private key from IndexedDB:", err);
+    return null;
+  }
+};
+
+// Clear private key from IndexedDB upon logout
+export const clearPrivateKeyFromDB = async () => {
+  try {
+    const db = await getIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      store.delete("privateKey");
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.error("Failed to clear private key from IndexedDB:", err);
+  }
+};
+
+// Generate RSA-OAEP key pair with non-extractable private key to prevent key extraction via XSS
 export const generateKeyPair = async () => {
   const keyPair = await window.crypto.subtle.generateKey(
     {
@@ -9,24 +80,28 @@ export const generateKeyPair = async () => {
       publicExponent: new Uint8Array([1, 0, 1]),
       hash: "SHA-256",
     },
-    true,
+    false, // extractable: false prevents malicious JS from exporting private key bytes
     ["encrypt", "decrypt"]
   );
   return keyPair;
 };
 
-// Export public key as a base64 string to send to server
+// Export public key as base64 string to publish to server
 export const exportPublicKey = async (publicKey) => {
   const exported = await window.crypto.subtle.exportKey("spki", publicKey);
   const exportedAsString = String.fromCharCode.apply(null, new Uint8Array(exported));
   return btoa(exportedAsString);
 };
 
-// Export private key as a base64 string to store locally
+// Export private key (only works if key is extractable, for legacy compatibility)
 export const exportPrivateKey = async (privateKey) => {
-  const exported = await window.crypto.subtle.exportKey("pkcs8", privateKey);
-  const exportedAsString = String.fromCharCode.apply(null, new Uint8Array(exported));
-  return btoa(exportedAsString);
+  try {
+    const exported = await window.crypto.subtle.exportKey("pkcs8", privateKey);
+    const exportedAsString = String.fromCharCode.apply(null, new Uint8Array(exported));
+    return btoa(exportedAsString);
+  } catch (e) {
+    return null;
+  }
 };
 
 // Import public key from base64 string
@@ -62,7 +137,7 @@ export const importPrivateKey = async (pem) => {
       name: "RSA-OAEP",
       hash: "SHA-256",
     },
-    true,
+    false,
     ["decrypt"]
   );
 };
@@ -108,10 +183,10 @@ export const encryptMessageDual = async (myPublicKeyStr, theirPublicKeyStr, mess
   try {
     const myPub = await importPublicKey(myPublicKeyStr);
     const theirPub = await importPublicKey(theirPublicKeyStr);
-    
+
     const myEnc = await encryptMessage(myPub, message);
     const theirEnc = await encryptMessage(theirPub, message);
-    
+
     return `E2EE:${myEnc}|${theirEnc}`;
   } catch (err) {
     console.error("Dual encryption failed", err);
@@ -119,16 +194,19 @@ export const encryptMessageDual = async (myPublicKeyStr, theirPublicKeyStr, mess
   }
 };
 
-// Decrypt dual-encrypted message
-export const decryptMessageDual = async (privateKeyStr, isSender, dualEncryptedStr) => {
+// Decrypt dual-encrypted message (accepts CryptoKey or legacy string)
+export const decryptMessageDual = async (privateKey, isSender, dualEncryptedStr) => {
   try {
-    if (!dualEncryptedStr.startsWith("E2EE:")) return dualEncryptedStr;
+    if (!dualEncryptedStr || !dualEncryptedStr.startsWith("E2EE:")) return dualEncryptedStr;
     const parts = dualEncryptedStr.replace("E2EE:", "").split("|");
     if (parts.length !== 2) return dualEncryptedStr;
-    
+
     const targetEnc = isSender ? parts[0] : parts[1];
-    const privKey = await importPrivateKey(privateKeyStr);
-    return await decryptMessage(privKey, targetEnc);
+    let keyObj = privateKey;
+    if (typeof privateKey === "string") {
+      keyObj = await importPrivateKey(privateKey);
+    }
+    return await decryptMessage(keyObj, targetEnc);
   } catch (err) {
     console.error("Dual decryption failed", err);
     return "[Decryption Error]";

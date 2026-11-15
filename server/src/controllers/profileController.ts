@@ -1,25 +1,37 @@
-// @ts-nocheck
+import { Response } from "express";
 import User from "../models/User.js";
+import { isValidObjectId } from "../middleware/validate.js";
 
 // GET /api/profile/:id
-export const getProfile = async (req, res) => {
+export const getProfile = async (req: any, res: Response) => {
   try {
-    const user = await User.findById(req.params.id).select(
-      "username email firstName lastName dob profileImage isVerified createdAt"
-    );
-    
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "Invalid user ID" });
+    }
+
+    const isOwnProfile = req.user && req.user.id === id;
+
+    // Access Control & Privacy: If viewing someone else's profile, hide sensitive fields (email, dob, gender)
+    const selectFields = isOwnProfile
+      ? "username email firstName lastName dob gender profileImage isVerified createdAt lastSeen"
+      : "username firstName lastName profileImage createdAt lastSeen";
+
+    const user = await User.findById(id).select(selectFields);
+
     if (!user) {
       return res.status(404).json({ msg: "User not found" });
     }
 
     res.json(user);
-  } catch (err) {
-    res.status(500).json({ error: (err as any).message });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 };
 
 // PUT /api/profile/update
-export const updateProfile = async (req, res) => {
+export const updateProfile = async (req: any, res: Response) => {
   try {
     const { firstName, lastName, dob, gender } = req.body as any;
     let profileImage = undefined;
@@ -29,11 +41,11 @@ export const updateProfile = async (req, res) => {
       profileImage = req.file.path;
     }
 
-    const updates = {};
-    if (firstName !== undefined) updates.firstName = firstName;
-    if (lastName !== undefined) updates.lastName = lastName;
-    if (dob !== undefined) updates.dob = dob;
-    if (gender !== undefined) updates.gender = gender;
+    const updates: any = {};
+    if (typeof firstName === "string") updates.firstName = firstName.trim();
+    if (typeof lastName === "string") updates.lastName = lastName.trim();
+    if (dob) updates.dob = new Date(dob);
+    if (gender && ["male", "female", "other"].includes(gender)) updates.gender = gender;
     if (profileImage !== undefined) updates.profileImage = profileImage;
 
     const user = await User.findByIdAndUpdate(
@@ -43,7 +55,7 @@ export const updateProfile = async (req, res) => {
     ).select("-password -verificationCode -resetPasswordToken -resetPasswordExpires");
 
     res.json({ msg: "Profile updated successfully", user });
-  } catch (err) {
-    res.status(500).json({ error: (err as any).message });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 };

@@ -1,48 +1,77 @@
-// @ts-nocheck
+import { Response } from "express";
 import Chat from "../models/Chat.js";
+import FriendRequest from "../models/FriendRequest.js";
+import User from "../models/User.js";
+import { isValidObjectId } from "../middleware/validate.js";
 
-export const ensureChat = async (req, res) => {
+export const ensureChat = async (req: any, res: Response) => {
   try {
     const me = req.user.id;
     const { otherId } = req.body as any;
-    if (!otherId) return res.status(400).json({ msg: "otherId is required" });
-    if (otherId === me) return res.status(400).json({ msg: "Cannot chat with yourself" });
+
+    if (!isValidObjectId(otherId)) {
+      return res.status(400).json({ msg: "Valid otherId is required" });
+    }
+    if (otherId === me) {
+      return res.status(400).json({ msg: "Cannot create a chat with yourself" });
+    }
 
     let chat = await Chat.findOne({
       members: { $all: [me, otherId], $size: 2 },
     });
 
-    if (!chat) {
-      chat = await Chat.create({ members: [me, otherId] });
+    if (chat) {
+      return res.json(chat);
     }
 
+    // Access Control (IDOR): Ensure friendship exists before creating a new chat
+    const friendship = await FriendRequest.findOne({
+      $or: [
+        { sender: me, receiver: otherId, status: "accepted" },
+        { sender: otherId, receiver: me, status: "accepted" },
+      ],
+    });
+
+    const otherUser = await User.findById(otherId);
+    if (!otherUser) {
+      return res.status(404).json({ msg: "Target user not found" });
+    }
+
+    const isEchoBot = otherUser.email === "bot@demo.com";
+
+    if (!friendship && !isEchoBot) {
+      return res.status(403).json({ msg: "Forbidden: You must be friends with this user to start a chat" });
+    }
+
+    chat = await Chat.create({ members: [me, otherId] });
     res.json(chat);
-  } catch (err) {
-    res.status(500).json({ error: (err as any).message });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 };
 
-export const getMyChats = async (req, res) => {
+export const getMyChats = async (req: any, res: Response) => {
   try {
     const me = req.user.id;
-    let chats = await Chat.find({ members: me })
-      .populate("members", "username email firstName lastName profileImage lastSeen")
+    let chats: any = await Chat.find({ members: me })
+      // Privacy: Do not expose email in chat members list
+      .populate("members", "username firstName lastName profileImage lastSeen")
       .sort({ updatedAt: -1 })
       .lean();
 
     const { getOnlineUsers } = await import("../socket.js");
     const onlineUsers = getOnlineUsers();
 
-    chats = chats.map(chat => {
-      chat.members = chat.members.map(m => ({
+    chats = chats.map((chat: any) => {
+      chat.members = chat.members.map((m: any) => ({
         ...m,
-        isOnline: onlineUsers.has(m._id.toString())
+        isOnline: onlineUsers.has(m._id.toString()),
       }));
       return chat;
     });
 
     res.json(chats);
-  } catch (err) {
-    res.status(500).json({ error: (err as any).message });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 };

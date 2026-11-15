@@ -2,7 +2,7 @@ import { useState } from "react";
 import { User, Mail, Lock, UserPlus, ArrowRight } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../api/axios";
-import { generateKeyPair, exportPublicKey, exportPrivateKey } from "../utils/crypto";
+import { generateKeyPair, exportPublicKey, getPrivateKeyFromDB, savePrivateKeyToDB } from "../utils/crypto";
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -20,30 +20,27 @@ export default function Register() {
     setSuccess("");
     try {
       let publicKey = null;
-      let privateKey = localStorage.getItem("privateKey");
-      
+      let privateKey = await getPrivateKeyFromDB();
+
       if (!privateKey) {
         const keyPair = await generateKeyPair();
         publicKey = await exportPublicKey(keyPair.publicKey);
-        privateKey = await exportPrivateKey(keyPair.privateKey);
+        await savePrivateKeyToDB(keyPair.privateKey);
       }
 
       const res = await API.post("/auth/signup", {
         username,
         email,
         password,
-        publicKey
+        publicKey,
       });
-      
-      if (privateKey) localStorage.setItem("privateKey", privateKey);
 
       setSuccess(res.data.msg || "Registration successful! Redirecting to login...");
-      
+
       // Auto navigate to login
       setTimeout(() => {
         navigate("/login");
       }, 1500);
-      
     } catch (err) {
       setError(err.response?.data?.msg || "Registration failed. Please try again.");
     } finally {
@@ -115,8 +112,9 @@ export default function Register() {
               </div>
               <input
                 type="password"
-                placeholder="Create a password"
+                placeholder="Create a password (min 6 characters)"
                 required
+                minLength={6}
                 className="w-full bg-white border border-slate-300 text-slate-900 placeholder-slate-400 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

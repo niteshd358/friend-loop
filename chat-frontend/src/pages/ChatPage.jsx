@@ -7,7 +7,7 @@ import {
   MessageSquare, UserPlus, Bell, Check, X, CheckCheck, User, Image as ImageIcon, FileText, ArrowLeft, Lock
 } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
-import { encryptMessageDual, decryptMessageDual } from "../utils/crypto";
+import { encryptMessageDual, decryptMessageDual, getPrivateKeyFromDB } from "../utils/crypto";
 
 const formatLastSeen = (dateString) => {
   if (!dateString) return "";
@@ -112,7 +112,7 @@ export default function ChatPage({ user, onLogout }) {
       
       API.get(`/messages/${selectedChat._id}?limit=50`)
         .then(async (res) => {
-          const privateKey = localStorage.getItem("privateKey");
+          const privateKey = await getPrivateKeyFromDB();
           const decryptedMessages = await Promise.all(res.data.messages.map(async (m) => {
             if (m.text && m.text.startsWith("E2EE:") && privateKey) {
               const isSender = (typeof m.senderId === 'object' ? m.senderId._id : m.senderId) === user._id;
@@ -158,7 +158,7 @@ export default function ChatPage({ user, onLogout }) {
     try {
       const res = await API.get(`/messages/${selectedChat._id}?cursor=${oldestMessageId}&limit=50`);
       
-      const privateKey = localStorage.getItem("privateKey");
+      const privateKey = await getPrivateKeyFromDB();
       const decryptedOldMessages = await Promise.all(res.data.messages.map(async (m) => {
         if (m.text && m.text.startsWith("E2EE:") && privateKey) {
           const isSender = (typeof m.senderId === 'object' ? m.senderId._id : m.senderId) === user._id;
@@ -190,7 +190,7 @@ export default function ChatPage({ user, onLogout }) {
     const handleNewMessage = async (msg) => {
       fetchChats(); // Update chat order
       if (msg.chatId === selectedChat?._id) {
-        const privateKey = localStorage.getItem("privateKey");
+        const privateKey = await getPrivateKeyFromDB();
         if (msg.text && msg.text.startsWith("E2EE:") && privateKey) {
           const isSender = (typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId) === user._id;
           msg.text = await decryptMessageDual(privateKey, isSender, msg.text);
